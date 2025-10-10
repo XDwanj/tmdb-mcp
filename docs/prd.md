@@ -160,9 +160,9 @@ TMDB MCP 服务是一个创新性项目，旨在利用 LLM 作为"超级胶水"�
    - 官方 MCP SDK 支持（`github.com/modelcontextprotocol/go-sdk`）
 
 2. **核心依赖库**:
-   - MCP SDK: `github.com/modelcontextprotocol/go-sdk` (官方 SDK)
+   - MCP SDK: `github.com/modelcontextprotocol/go-sdk` (官方 SDK，内置 SSE 支持)
    - HTTP 客户端（TMDB API）: `github.com/go-resty/resty/v2`
-   - **HTTP 服务器（SSE）**: `github.com/gin-gonic/gin` (Web 框架，内置 SSE 支持)
+   - **HTTP 服务器（SSE）**: `net/http` (标准库 + MCP SDK 的 `SSEHTTPHandler`)
    - 速率限制: `golang.org/x/time/rate`
    - 日志: `go.uber.org/zap`
    - 配置: `github.com/spf13/viper` (支持配置文件、环境变量、命令行 flags)
@@ -192,10 +192,9 @@ TMDB MCP 服务是一个创新性项目，旨在利用 LLM 作为"超级胶水"�
      - `go test` - 测试
      - `go fmt` - 格式化
      - `go vet` - 静态检查
-   - **Gin 框架配置**:
-     - 生产模式：设置 `GIN_MODE=release` 环境变量
-     - 开发模式：使用默认 debug 模式，输出详细请求日志
-     - 自定义日志：Gin 日志集成到 zap 结构化日志中
+   - **HTTP 服务器配置**:
+     - 使用标准库 `net/http` 和 MCP SDK 的 `SSEHTTPHandler`
+     - 集成 zap 结构化日志记录 HTTP 请求
 
 6. **安全考虑**:
    - API Key 不得硬编码，仅通过环境变量或配置文件读取
@@ -225,14 +224,14 @@ TMDB MCP 服务是一个创新性项目，旨在利用 LLM 作为"超级胶水"�
 11. **SSE 访问模式**:
     - 支持两种运行模式：`stdio`（标准 MCP）和 `sse`（Server-Sent Events over HTTP）
     - 可同时启用两种模式（`mode: both`）
-    - **Web 框架**: 使用 Gin (`github.com/gin-gonic/gin`) 实现 HTTP 服务
-      - Gin 模式设置为 `release` 模式（生产环境）
-      - 使用 Gin 中间件实现 Bearer Token 认证
-      - 利用 Gin 的 `c.Stream()` 实现 SSE 响应
+    - **HTTP 服务器实现**: 使用标准库 `net/http` + MCP SDK 的 `SSEHTTPHandler`
+      - `SSEHTTPHandler` 是 MCP SDK 提供的官方 SSE 处理器
+      - 实现了 `http.Handler` 接口,可直接用于 `http.Server`
+      - 通过 `mcp.NewSSEHTTPHandler(getServer func(*http.Request) *Server)` 创建
     - SSE 配置：
       - 默认端口：`8910`
       - 默认绑定：`0.0.0.0`（支持远程访问）
-      - 认证方式：`Authorization: Bearer <token>` header
+      - 认证方式：`Authorization: Bearer <token>` header（使用标准库中间件实现）
       - Token 长期有效，无过期机制
     - SSE 端点：
       - `GET /mcp/sse` - 建立 SSE 连接（需要 Bearer token）
@@ -278,7 +277,7 @@ logging:
 **目标**: 实现趋势和推荐工具，完成所有 6 个核心 MCP 工具，优化速率限制和性能监控，stdio 模式功能完整可用。
 
 ### Epic 4: SSE Remote Access Mode
-**目标**: 集成 Gin 框架，实现 SSE 远程访问模式和 Token 认证，支持 stdio + sse 双模式运行，完成 Docker 镜像构建和部署。
+**目标**: 使用 MCP SDK 的 SSEHTTPHandler 和标准库 net/http 实现 SSE 远程访问模式和 Token 认证，支持 stdio + sse 双模式运行，完成 Docker 镜像构建和部署。
 
 ### Epic 5: Documentation, Examples & Community Launch
 **目标**: 完善项目文档（README、配置指南、使用示例、故障排查），提供真实场景的示例配置和脚本，准备并发布 GitHub Release、Docker Hub 镜像，向社区宣传（r/selfhosted、r/jellyfin）并收集早期用户反馈。
@@ -594,25 +593,24 @@ logging:
 
 ### Epic 4: SSE Remote Access Mode
 
-**Epic Goal**: 在现有 stdio 模式的基础上，集成 Gin Web 框架实现 Server-Sent Events (SSE) 远程访问模式，提供 HTTP API 端点供远程客户端连接。实现 Bearer Token 认证机制保护 SSE 端点，支持通过环境变量和配置文件管理 Token。支持 stdio 和 sse 双模式同时运行，并完成 Docker 镜像构建和多平台二进制文件编译，使服务可以方便地部署到远程服务器或容器环境中。
+**Epic Goal**: 在现有 stdio 模式的基础上，使用 MCP Go SDK 提供的 `SSEHTTPHandler` 实现 Server-Sent Events (SSE) 远程访问模式，提供 HTTP API 端点供远程客户端连接。实现 Bearer Token 认证中间件（基于标准库 `net/http`）保护 SSE 端点，支持通过环境变量和配置文件管理 Token。支持 stdio 和 sse 双模式同时运行，并完成 Docker 镜像构建和多平台二进制文件编译，使服务可以方便地部署到远程服务器或容器环境中。
 
-#### Story 4.1: Gin Framework Integration and HTTP Server Setup
+#### Story 4.1: HTTP Server Setup with Standard Library
 
 **As a** developer,
-**I want** to integrate Gin framework and set up a basic HTTP server,
+**I want** to set up a basic HTTP server using standard library `net/http`,
 **so that** I can provide HTTP endpoints for SSE connections and health checks.
 
 **Acceptance Criteria**:
 
-1. 集成 `github.com/gin-gonic/gin` 依赖
-2. 创建 `internal/server` 包，实现 HTTP 服务器，结构体 `HTTPServer` 包含 Gin engine、配置、TMDB client 引用
-3. 实现 `NewHTTPServer(config Config, tmdbClient *TMDBClient)` 构造函数
-4. 配置 Gin：根据 `GIN_MODE` 环境变量设置模式，默认 `release` 模式，集成 zap logger
-5. 实现 `/health` 端点（无需认证）：返回 `{"status": "ok", "version": "1.0.0", "mode": "sse"}`
-6. 实现服务器启动和优雅关闭：`Start()` 和 `Stop(ctx)` 方法，支持 SIGINT/SIGTERM 信号处理
-7. 更新配置结构体，添加 SSE 相关配置
-8. 编写单元测试：测试 server 启动/停止、`/health` 端点
-9. 编写集成测试：启动服务器，调用 `/health`，验证 200 OK
+1. 创建 `internal/server` 包，实现 HTTP 服务器，结构体 `HTTPServer` 包含 `http.Server`、配置、MCP server 引用
+2. 实现 `NewHTTPServer(config Config, mcpServer *mcp.Server)` 构造函数
+3. 配置 `http.Server`：设置监听地址、读写超时、集成 zap logger 记录 HTTP 请求
+4. 实现 `/health` 端点（无需认证）：返回 `{"status": "ok", "version": "1.0.0", "mode": "sse"}`，使用标准 `http.HandlerFunc`
+5. 实现服务器启动和优雅关闭：`Start()` 和 `Stop(ctx)` 方法，支持 SIGINT/SIGTERM 信号处理
+6. 更新配置结构体，添加 SSE 相关配置（host, port, token）
+7. 编写单元测试：测试 server 启动/停止、`/health` 端点
+8. 编写集成测试：启动服务器，调用 `/health`，验证 200 OK
 
 #### Story 4.2: Token Generation and Management
 
@@ -633,36 +631,45 @@ logging:
 #### Story 4.3: Bearer Token Authentication Middleware
 
 **As a** developer,
-**I want** to implement Bearer Token authentication middleware for Gin,
+**I want** to implement Bearer Token authentication middleware using standard library `net/http`,
 **so that** only authorized clients can access the SSE endpoint.
 
 **Acceptance Criteria**:
 
-1. 实现 Gin 中间件 `AuthMiddleware(expectedToken string) gin.HandlerFunc`
-2. 认证逻辑：提取 `Authorization` header、验证格式 `Bearer <token>`、使用 `subtle.ConstantTimeCompare` 比对 token
-3. 认证成功：调用 `c.Next()`、记录 DEBUG 日志
-4. 认证失败：返回 `401 Unauthorized`、JSON 响应、调用 `c.Abort()`、记录 WARN 日志
+1. 实现标准库中间件 `AuthMiddleware(expectedToken string) func(http.Handler) http.Handler`
+2. 认证逻辑：提取 `Authorization` header、验证格式 `Bearer <token>`、使用 `crypto/subtle.ConstantTimeCompare` 比对 token
+3. 认证成功：调用 `next.ServeHTTP(w, r)`、记录 DEBUG 日志
+4. 认证失败：返回 `401 Unauthorized`、JSON 响应 `{"error": "unauthorized"}`、记录 WARN 日志
 5. 错误场景处理：缺少 header、格式错误、token 不匹配
-6. 将中间件应用到 `/mcp/sse` 路由（不应用到 `/health`）
+6. 将中间件应用到 SSE 路由（不应用到 `/health`）
 7. 编写单元测试：测试有效/无效 token、缺少 header、`/health` 不需要认证
 8. 编写集成测试：使用正确/错误 token 访问 SSE 端点
 
-#### Story 4.4: Implement SSE Endpoint with MCP Protocol
+#### Story 4.4: Implement SSE Endpoint with MCP SDK
 
 **As a** user,
-**I want** to connect to the MCP service via SSE over HTTP,
+**I want** to connect to the MCP service via SSE over HTTP using MCP SDK's built-in support,
 **so that** I can access TMDB tools remotely from any device on the network.
 
 **Acceptance Criteria**:
 
-1. 实现 `/mcp/sse` 端点（需要认证）：方法 GET、使用 `AuthMiddleware`、Content-Type: `text/event-stream`、必需 headers
-2. SSE 连接处理：使用 Gin 的 `c.Stream()`、保持连接打开、心跳机制（每 30 秒发送 `:ping`）
-3. MCP over SSE 协议：客户端通过 SSE 发送 JSON-RPC 请求、服务器处理 MCP 请求、通过 SSE 事件返回响应
-4. 复用现有 MCP Handler：将 stdio 的 request/response 适配到 HTTP/SSE
-5. 连接管理：记录活跃连接数、记录连接建立/断开日志、支持多个并发连接
+1. 使用 MCP SDK 创建 SSE handler：`sseHandler := mcp.NewSSEHTTPHandler(func(req *http.Request) *mcp.Server { return mcpServer })`
+2. 实现 `/mcp/sse` 端点（需要认证）：
+   - 方法 GET
+   - 应用 `AuthMiddleware` 包装 `sseHandler`
+   - `SSEHTTPHandler` 自动处理 SSE 连接、Content-Type 和必需的 headers
+3. SSE 连接处理（由 `SSEHTTPHandler` 自动处理）：
+   - 自动设置正确的 SSE headers（Content-Type: text/event-stream 等）
+   - 保持连接打开
+   - 内置心跳机制
+4. MCP over SSE 协议（SDK 自动处理）：
+   - 客户端通过 SSE 发送 JSON-RPC 请求
+   - 服务器处理 MCP 请求（复用 stdio 模式的工具实现）
+   - 通过 SSE 事件返回响应
+5. 连接管理：记录活跃连接数、记录连接建立/断开日志
 6. 错误处理：MCP 请求解析失败、工具调用失败、连接异常断开
-7. 编写单元测试：Mock SSE 连接、发送 MCP 请求、验证响应格式
-8. 编写集成测试：建立 SSE 连接、发送 `tools/list`、发送 `tools/call`、验证心跳消息
+7. 编写单元测试：测试 SSE handler 创建、认证中间件集成
+8. 编写集成测试：建立 SSE 连接、发送 `tools/list`、发送 `tools/call`、验证响应格式
 
 #### Story 4.5: Dual Mode Support (stdio + sse)
 
@@ -692,7 +699,7 @@ logging:
 
 1. 创建 Dockerfile（多阶段构建）：Build stage（golang:1.21-alpine）+ Runtime stage（alpine:latest）
 2. 创建 `.dockerignore`：排除 `.git`, `*.md`, `.ai/`, `config.yaml`
-3. 支持环境变量配置：`TMDB_API_KEY`, `SSE_TOKEN`, `SERVER_MODE`, `SERVER_SSE_HOST`, `SERVER_SSE_PORT`, `LOGGING_LEVEL`, `GIN_MODE`
+3. 支持环境变量配置：`TMDB_API_KEY`, `SSE_TOKEN`, `SERVER_MODE`, `SERVER_SSE_HOST`, `SERVER_SSE_PORT`, `LOGGING_LEVEL`
 4. 配置文件挂载支持：支持挂载 `/root/.tmdb-mcp/config.yaml`
 5. 构建多平台镜像：使用 Docker Buildx 构建 `linux/amd64`, `linux/arm64`, `linux/arm/v7`
 6. 创建 docker-compose.yml 示例
@@ -852,7 +859,7 @@ logging:
 | 4. Functional Requirements       | **PASS**   | None            | 9 个 FR 详细且可测试，覆盖所有核心功能 |
 | 5. Non-Functional Requirements   | **PASS**   | None            | 12 个 NFR 全面，包括性能、安全、配置管理 |
 | 6. Epic & Story Structure        | **PASS**   | None            | 5 个 Epic，30+ Stories，AC 详细且可执行 |
-| 7. Technical Guidance            | **PASS**   | None            | 技术栈明确（Golang, Gin, Resty, Viper, Zap） |
+| 7. Technical Guidance            | **PASS**   | None            | 技术栈明确（Golang, net/http, MCP SDK, Resty, Viper, Zap） |
 | 8. Cross-Functional Requirements | **PASS**   | None            | 集成（TMDB API）、运维（Docker）、监控（日志）已覆盖 |
 | 9. Clarity & Communication       | **PASS**   | None            | 结构清晰，术语一致，中文文档流畅 |
 
@@ -944,22 +951,20 @@ logging:
    - 项目结构（cmd/, internal/, pkg/）
 
 2. **关键技术调研**
-   - **优先级 P0**：调研 MCP Go SDK 的 SSE 支持情况
-     - 如不支持，设计 SSE 适配器方案
-     - 评估备选方案（WebSocket）
-   - Gin 的 SSE 实现模式（`c.Stream()`）
+   - MCP SDK 的 `SSEHTTPHandler` 使用模式和最佳实践
+   - 标准库 `net/http` 中间件模式实现 Bearer Token 认证
    - Viper 的配置优先级实现（CLI > ENV > File）
 
 3. **核心组件设计**
    - TMDB API 客户端（Resty、速率限制、错误处理）
    - MCP 工具注册和调用机制
-   - Token 生成和认证中间件
+   - Token 生成和认证中间件（标准库）
    - 配置管理（多源、优先级、持久化）
    - 日志系统（Zap、结构化日志、性能监控）
 
 4. **数据流设计**
    - stdio 模式：stdin/stdout → MCP handler → 工具 → TMDB API
-   - SSE 模式：HTTP request → 认证中间件 → SSE handler → MCP handler → 工具 → TMDB API
+   - SSE 模式：HTTP request → 认证中间件 → `SSEHTTPHandler` → MCP handler → 工具 → TMDB API
 
 5. **错误处理策略**
    - TMDB API 错误（401/404/429）的统一处理
@@ -992,30 +997,36 @@ logging:
 - ✅ 精简原则：不使用 Makefile、golangci-lint，仅用 Go 原生工具链
 
 **技术栈**：
-- 框架：Gin（SSE）
+- MCP SDK：`github.com/modelcontextprotocol/go-sdk`（内置 SSE 支持）
+- HTTP 服务器：标准库 `net/http`
 - HTTP 客户端：Resty
 - 配置管理：Viper
 - 日志：Zap
-- MCP SDK：`github.com/modelcontextprotocol/go-sdk`
 - 速率限制：`golang.org/x/time/rate`
 
 ### 关键风险点
 
 **请优先关注**：
 
-1. **MCP Go SDK 的 SSE 支持** ⚠️ HIGH RISK
-   - 调研官方 SDK 是否支持 SSE transport
-   - 如不支持，设计适配器层
-   - 评估实现复杂度
+1. **SSEHTTPHandler 与标准库中间件集成** ⚠️ MEDIUM RISK
+   - 风险：需要确保认证中间件能正确包装 `SSEHTTPHandler`
+   - 影响：Epic 4 的 Story 4.3 和 4.4 实现复杂度
+   - 缓解：参考 MCP SDK 示例中的认证中间件模式、早期原型验证
 
-2. **Gin SSE + MCP 协议集成**
-   - 设计 MCP JSON-RPC 消息到 SSE 事件的映射
-   - 心跳机制（30 秒间隔）
-   - 连接管理和优雅断开
+2. **LLM 工具理解能力** (LOW RISK)
+   - 风险：Claude 等 LLM 可能无法有效理解 discover 工具的复杂参数
+   - 影响：内容发现场景效果不佳
+   - 缓解：工具描述中提供清晰示例、Epic 3, Story 3.5 中验证
 
-3. **配置优先级实现**
-   - Viper 是否原生支持 CLI > ENV > File
-   - Token 自动生成并写入配置文件的逻辑
+3. **TMDB API 稳定性** (LOW RISK)
+   - 风险：TMDB API 可能变更或限制加严
+   - 影响：服务不可用
+   - 缓解：已实现错误处理和速率限制、监控 TMDB 官方公告
+
+4. **配置优先级实现**
+   - 风险：Viper 的配置优先级逻辑需要仔细设计
+   - 影响：用户配置体验
+   - 缓解：参考 Viper 官方文档、编写完整的配置管理测试
 
 ### 交付物
 
@@ -1027,9 +1038,10 @@ logging:
    - 目录结构设计
    - 关键设计决策和理由
 
-2. **技术调研报告**：
-   - MCP Go SDK SSE 支持调研结果
-   - 备选方案对比（如 WebSocket）
+2. **SSE 集成方案**：
+   - `SSEHTTPHandler` 使用模式
+   - 认证中间件与 `SSEHTTPHandler` 的集成方案
+   - 连接管理和心跳机制说明
 
 3. **接口设计**：
    - 核心 struct 和 interface 定义
@@ -1044,7 +1056,7 @@ logging:
 ### 成功标准
 
 ✅ 架构设计清晰，开发者可直接按设计实现
-✅ MCP Go SDK SSE 支持已确认或备选方案已设计
+✅ SSE 集成方案明确，利用 MCP SDK 的 `SSEHTTPHandler`
 ✅ 性能和安全要求已体现在设计中
 ✅ 所有技术风险已识别并有缓解方案
 ✅ 架构文档完整，可传递给开发团队
@@ -1053,8 +1065,8 @@ logging:
 
 - MCP 协议规范：https://spec.modelcontextprotocol.io/
 - MCP Go SDK：https://github.com/modelcontextprotocol/go-sdk
+- **MCP Go SDK 文档**：`docs/mcp-go-sdk.md`（本地文档，包含 SSE 支持详情）
 - TMDB API v3：https://developers.themoviedb.org/3
-- Gin 框架：https://gin-gonic.com/docs/
 - 项目简报：`docs/brief.md`
 
 ---
