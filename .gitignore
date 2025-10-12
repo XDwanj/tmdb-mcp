@@ -9,7 +9,7 @@ config.yaml
 .tmdb-mcp/
 
 # 构建产物
-tmdb-mcp
+/tmdb-mcp
 *.exe
 *.test
 *.out
