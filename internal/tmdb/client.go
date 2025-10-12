@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/XDwanj/tmdb-mcp/internal/config"
+	"github.com/XDwanj/tmdb-mcp/internal/ratelimit"
 	"github.com/XDwanj/tmdb-mcp/pkg/version"
 )
 
@@ -22,10 +23,11 @@ const (
 
 // Client is the TMDB API client
 type Client struct {
-	httpClient *resty.Client
-	apiKey     string
-	language   string
-	logger     *zap.Logger
+	httpClient  *resty.Client
+	apiKey      string
+	language    string
+	logger      *zap.Logger
+	rateLimiter *ratelimit.Limiter
 }
 
 // NewClient creates a new TMDB API client with configured Resty client
@@ -53,16 +55,30 @@ func NewClient(cfg config.TMDBConfig, logger *zap.Logger) *Client {
 		zap.String("user_agent", userAgent),
 	)
 
+	// Create rate limiter
+	rateLimiter := ratelimit.NewLimiter(cfg, logger)
+
+	logger.Debug("Rate Limiter integrated to TMDB Client",
+		zap.String("component", "tmdb_client"),
+	)
+
 	return &Client{
-		httpClient: httpClient,
-		apiKey:     cfg.APIKey,
-		language:   cfg.Language,
-		logger:     logger,
+		httpClient:  httpClient,
+		apiKey:      cfg.APIKey,
+		language:    cfg.Language,
+		logger:      logger,
+		rateLimiter: rateLimiter,
 	}
 }
 
 // Ping tests the TMDB API Key validity by calling the /configuration endpoint
 func (c *Client) Ping(ctx context.Context) error {
+	// Wait for rate limit
+	if err := c.rateLimiter.Wait(ctx); err != nil {
+		c.logger.Error("rate limit wait failed", zap.Error(err))
+		return fmt.Errorf("rate limit wait failed: %w", err)
+	}
+
 	resp, err := c.httpClient.R().
 		SetContext(ctx).
 		Get("/configuration")

@@ -18,8 +18,9 @@ import (
 func TestNewClient(t *testing.T) {
 	logger := zap.NewNop()
 	cfg := config.TMDBConfig{
-		APIKey:   "test_api_key",
-		Language: "en-US",
+		APIKey:    "test_api_key",
+		Language:  "en-US",
+		RateLimit: 40,
 	}
 
 	client := NewClient(cfg, logger)
@@ -29,6 +30,7 @@ func TestNewClient(t *testing.T) {
 	assert.Equal(t, "test_api_key", client.apiKey)
 	assert.Equal(t, "en-US", client.language)
 	assert.NotNil(t, client.logger)
+	assert.NotNil(t, client.rateLimiter)
 }
 
 // TestClient_Ping tests the Ping method
@@ -97,8 +99,9 @@ func TestClient_Ping(t *testing.T) {
 			// 创建测试客户端
 			logger := zap.NewNop()
 			cfg := config.TMDBConfig{
-				APIKey:   "test_api_key",
-				Language: "zh-CN",
+				APIKey:    "test_api_key",
+				Language:  "zh-CN",
+				RateLimit: 40,
 			}
 			client := NewClient(cfg, logger)
 
@@ -131,8 +134,9 @@ func TestClient_Ping_Timeout(t *testing.T) {
 
 	logger := zap.NewNop()
 	cfg := config.TMDBConfig{
-		APIKey:   "test_api_key",
-		Language: "en-US",
+		APIKey:    "test_api_key",
+		Language:  "en-US",
+		RateLimit: 40,
 	}
 	client := NewClient(cfg, logger)
 	client.httpClient.SetBaseURL(server.URL)
@@ -216,8 +220,9 @@ func TestHandleError(t *testing.T) {
 			// 创建客户端并发送请求
 			logger := zap.NewNop()
 			cfg := config.TMDBConfig{
-				APIKey:   "test_api_key",
-				Language: "en-US",
+				APIKey:    "test_api_key",
+				Language:  "en-US",
+				RateLimit: 40,
 			}
 			client := NewClient(cfg, logger)
 			client.httpClient.SetBaseURL(server.URL)
@@ -261,8 +266,9 @@ func TestClient_Resty_Configuration(t *testing.T) {
 
 	logger := zap.NewNop()
 	cfg := config.TMDBConfig{
-		APIKey:   "test_api_key_12345",
-		Language: "ja-JP",
+		APIKey:    "test_api_key_12345",
+		Language:  "ja-JP",
+		RateLimit: 40,
 	}
 	client := NewClient(cfg, logger)
 	client.httpClient.SetBaseURL(server.URL)
