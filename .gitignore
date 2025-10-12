@@ -3,3 +3,25 @@
 .bmad-*/
 
 .ignore/
+
+# 配置文件（包含敏感信息）
+config.yaml
+.tmdb-mcp/
+
+# 构建产物
+tmdb-mcp
+*.exe
+*.test
+*.out
+
+# IDE 配置
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Go 相关
+*.prof
+coverage.txt
+coverage.html
