@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/XDwanj/tmdb-mcp/internal/tmdb"
+	"github.com/XDwanj/tmdb-mcp/internal/tools"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.uber.org/zap"
 )
@@ -28,8 +29,38 @@ func NewServer(tmdbClient *tmdb.Client, logger *zap.Logger) *Server {
 		Version: "1.0.0",
 	}, opts)
 
-	// TODO: Future story 1.6 will add tools here
-	// Example: mcp.AddTool(mcpServer, &mcp.Tool{Name: "search"}, searchHandler)
+	// Register search tool
+	mcp.AddTool(mcpServer, &mcp.Tool{
+		Name:        "search",
+		Description: "Search for movies, TV shows, and people on TMDB using a query string",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, params tools.SearchParams) (*mcp.CallToolResult, tools.SearchResponse, error) {
+		// Set default page
+		if params.Page == 0 {
+			params.Page = 1
+		}
+
+		logger.Info("Search request received",
+			zap.String("query", params.Query),
+			zap.Int("page", params.Page),
+		)
+
+		// Call TMDB Client (validation is done in the client layer)
+		results, err := tmdbClient.Search(ctx, params.Query, params.Page)
+		if err != nil {
+			logger.Error("Search failed",
+				zap.Error(err),
+				zap.String("query", params.Query),
+			)
+			return nil, tools.SearchResponse{}, err
+		}
+
+		logger.Info("Search completed",
+			zap.String("query", params.Query),
+			zap.Int("results", len(results.Results)),
+		)
+
+		return &mcp.CallToolResult{}, tools.SearchResponse{Results: results.Results}, nil
+	})
 
 	return &Server{
 		mcpServer:  mcpServer,

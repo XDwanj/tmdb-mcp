@@ -200,3 +200,69 @@ func TestServer_Run_ContextCancellation(t *testing.T) {
 		t.Error("Server did not stop after context cancellation")
 	}
 }
+
+// TestSearchToolRegistration 测试 search 工具是否正确注册
+func TestSearchToolRegistration(t *testing.T) {
+	logger := zap.NewNop()
+	tmdbConfig := config.TMDBConfig{
+		APIKey:    "test_api_key",
+		Language:  "en-US",
+		RateLimit: 40,
+	}
+	tmdbClient := tmdb.NewClient(tmdbConfig, logger)
+
+	server := NewServer(tmdbClient, logger)
+
+	// 创建 InMemoryTransport
+	clientTransport, serverTransport := mcpsdk.NewInMemoryTransports()
+
+	// 创建带超时的 context
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	// 在 goroutine 中运行 server
+	go func() {
+		_ = server.Run(ctx, serverTransport)
+	}()
+
+	// 给 server 一些时间启动
+	time.Sleep(50 * time.Millisecond)
+
+	// 创建 client
+	client := mcpsdk.NewClient(&mcpsdk.Implementation{
+		Name:    "test-client",
+		Version: "1.0.0",
+	}, nil)
+
+	// 连接 client 到 server
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	require.NoError(t, err, "Client should connect successfully")
+
+	// 等待初始化完成
+	time.Sleep(100 * time.Millisecond)
+
+	// 列出工具
+	tools, err := clientSession.ListTools(ctx, &mcpsdk.ListToolsParams{})
+	require.NoError(t, err, "ListTools should succeed")
+	require.NotNil(t, tools, "Tools result should not be nil")
+
+	// 验证 search 工具已注册
+	var searchTool *mcpsdk.Tool
+	for i := range tools.Tools {
+		if tools.Tools[i].Name == "search" {
+			searchTool = tools.Tools[i]
+			break
+		}
+	}
+
+	require.NotNil(t, searchTool, "Search tool should be registered")
+	assert.Equal(t, "search", searchTool.Name, "Tool name should be 'search'")
+	assert.Equal(t, "Search for movies, TV shows, and people on TMDB using a query string",
+		searchTool.Description, "Tool description should match")
+
+	// 验证工具输入 schema 包含 query 和 page 参数
+	require.NotNil(t, searchTool.InputSchema, "Tool should have input schema")
+
+	// 注意：由于 MCP SDK 自动生成 schema，我们只验证关键信息
+	// 详细的参数验证应该在集成测试中完成
+}
