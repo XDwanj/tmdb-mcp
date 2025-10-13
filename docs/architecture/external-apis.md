@@ -14,17 +14,17 @@
 
 **Key Endpoints Used**:
 
-| Endpoint | Method | Purpose | 映射工具 |
-|----------|--------|---------|---------|
-| `/search/multi` | GET | 搜索电影/电视剧/人物 | search |
-| `/movie/{id}` | GET | 获取电影详情 | get_details |
-| `/tv/{id}` | GET | 获取电视剧详情 | get_details |
-| `/person/{id}` | GET | 获取人物详情 | get_details |
-| `/discover/movie` | GET | 发现电影（筛选） | discover_movies |
-| `/discover/tv` | GET | 发现电视剧（筛选） | discover_tv |
-| `/trending/{media_type}/{time_window}` | GET | 获取热门内容 | get_trending |
-| `/movie/{id}/recommendations` | GET | 获取电影推荐 | get_recommendations |
-| `/tv/{id}/recommendations` | GET | 获取电视剧推荐 | get_recommendations |
+| Endpoint                               | Method | Purpose              | 映射工具            |
+| -------------------------------------- | ------ | -------------------- | ------------------- |
+| `/search/multi`                        | GET    | 搜索电影/电视剧/人物 | search              |
+| `/movie/{id}`                          | GET    | 获取电影详情         | get_details         |
+| `/tv/{id}`                             | GET    | 获取电视剧详情       | get_details         |
+| `/person/{id}`                         | GET    | 获取人物详情         | get_details         |
+| `/discover/movie`                      | GET    | 发现电影（筛选）     | discover_movies     |
+| `/discover/tv`                         | GET    | 发现电视剧（筛选）   | discover_tv         |
+| `/trending/{media_type}/{time_window}` | GET    | 获取热门内容         | get_trending        |
+| `/movie/{id}/recommendations`          | GET    | 获取电影推荐         | get_recommendations |
+| `/tv/{id}/recommendations`             | GET    | 获取电视剧推荐       | get_recommendations |
 
 **Integration Notes**:
 

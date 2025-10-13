@@ -105,7 +105,7 @@ func TestClient_Search_404NotFound(t *testing.T) {
 	// Mock TMDB API server returning 404
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"status_code":    34,
 			"status_message": "The resource you requested could not be found.",
 		})
@@ -129,7 +129,7 @@ func TestClient_Search_401Unauthorized(t *testing.T) {
 	// Mock TMDB API server returning 401
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"status_code":    7,
 			"status_message": "Invalid API key: You must be granted a valid key.",
 		})

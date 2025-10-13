@@ -173,31 +173,49 @@ if err := limiter.Wait(ctx); err != nil {
 
 **Tool Registration**:
 ```go
-func NewServer(tmdbClient *tmdb.Client, logger *zap.Logger) *mcp.Server {
-    server := mcp.NewServer(mcp.ServerInfo{
+func NewServer(tmdbClient *tmdb.Client, logger *zap.Logger) *Server {
+    // Create server options
+    opts := &mcp.ServerOptions{
+        Instructions: "TMDB Movie Database MCP Server - provides tools for searching and retrieving movie information",
+    }
+
+    // Create MCP server with implementation info
+    mcpServer := mcp.NewServer(&mcp.Implementation{
         Name:    "tmdb-mcp",
         Version: "1.0.0",
-    })
+    }, opts)
 
-    // 注册 6 个工具
-    server.AddTool(tools.NewSearchTool(tmdbClient, logger))
-    server.AddTool(tools.NewGetDetailsTool(tmdbClient, logger))
-    server.AddTool(tools.NewDiscoverMoviesTool(tmdbClient, logger))
-    server.AddTool(tools.NewDiscoverTVTool(tmdbClient, logger))
-    server.AddTool(tools.NewGetTrendingTool(tmdbClient, logger))
-    server.AddTool(tools.NewGetRecommendationsTool(tmdbClient, logger))
+    // Create and register search tool
+    searchTool := tools.NewSearchTool(tmdbClient, logger)
+    mcp.AddTool(mcpServer, &mcp.Tool{
+        Name:        searchTool.Name(),
+        Description: searchTool.Description(),
+    }, searchTool.Handler())
 
-    return server
+    // 其他 5 个工具同理注册...
+
+    return &Server{
+        mcpServer:  mcpServer,
+        tmdbClient: tmdbClient,
+        logger:     logger,
+    }
 }
 ```
+
+**设计说明**:
+- **Server 层职责**: 仅负责工具注册,不包含业务逻辑(50 行代码)
+- **Tools 层职责**: 提供 `Handler()` 工厂方法,返回符合 MCP SDK 签名的处理函数
+- **闭包模式**: `Handler()` 返回的闭包自动捕获 `tmdbClient` 和 `logger` 依赖
+- **SDK 自动处理**: jsonschema 标签自动生成 InputSchema,SDK 自动解析和验证参数
 
 ## MCP Tools (internal/tools)
 
 **Responsibility**: 实现 6 个 MCP 工具，处理参数验证和结果转换
 
 **Key Interfaces**:
-- `func (t *SearchTool) Call(ctx context.Context, params json.RawMessage) (interface{}, error)`
-- 每个工具实现 `mcp.Tool` 接口
+- `func (t *SearchTool) Name() string` - 返回工具名称
+- `func (t *SearchTool) Description() string` - 返回工具描述
+- `func (t *SearchTool) Handler() func(...)` - 返回处理函数（工厂方法）
 
 **Dependencies**: TMDB Client, Logger
 
@@ -223,32 +241,50 @@ func (t *SearchTool) Name() string {
 }
 
 func (t *SearchTool) Description() string {
-    return "Search for movies, TV shows, and people on TMDB"
+    return "Search for movies, TV shows, and people on TMDB using a query string"
 }
 
-func (t *SearchTool) Call(ctx context.Context, params json.RawMessage) (interface{}, error) {
-    // 1. 解析参数
-    var searchParams SearchParams
-    if err := json.Unmarshal(params, &searchParams); err != nil {
-        return nil, err
-    }
+// Handler 返回一个符合 MCP SDK 签名的处理函数
+// 这允许工具在 MCP Server 中注册,同时将业务逻辑封装在 SearchTool 中
+func (t *SearchTool) Handler() func(context.Context, *mcp.CallToolRequest, SearchParams) (*mcp.CallToolResult, SearchResponse, error) {
+    return func(ctx context.Context, req *mcp.CallToolRequest, params SearchParams) (*mcp.CallToolResult, SearchResponse, error) {
+        // 1. 设置默认值
+        if params.Page == 0 {
+            params.Page = 1
+        }
 
-    // 2. 验证参数
-    if searchParams.Query == "" {
-        return nil, errors.New("query parameter is required")
-    }
+        // 2. 记录请求日志
+        t.logger.Info("Search request received",
+            zap.String("query", params.Query),
+            zap.Int("page", params.Page),
+        )
 
-    // 3. 调用 TMDB Client
-    results, err := t.tmdbClient.Search(ctx, searchParams.Query, searchParams.Page)
-    if err != nil {
-        t.logger.Error("Search failed", zap.Error(err))
-        return nil, err
-    }
+        // 3. 调用 TMDB Client (参数验证在 Client 层完成)
+        results, err := t.tmdbClient.Search(ctx, params.Query, params.Page)
+        if err != nil {
+            t.logger.Error("Search failed",
+                zap.Error(err),
+                zap.String("query", params.Query),
+            )
+            return nil, SearchResponse{}, err
+        }
 
-    // 4. 返回结果
-    return results, nil
+        t.logger.Info("Search completed",
+            zap.String("query", params.Query),
+            zap.Int("results", len(results.Results)),
+        )
+
+        // 4. 返回空的 CallToolResult 和结构化响应
+        return &mcp.CallToolResult{}, SearchResponse{Results: results.Results}, nil
+    }
 }
 ```
+
+**设计说明**:
+- **Handler() 工厂方法**: 返回闭包函数,自动捕获 `tmdbClient` 和 `logger` 依赖
+- **类型安全参数**: MCP SDK 自动从 SearchParams 的 jsonschema 标签生成 InputSchema 并验证参数
+- **职责分离**: Tools 层只处理日志和默认值,参数验证在 Client 层统一完成
+- **闭包模式**: 避免全局变量,每个工具实例独立维护依赖
 
 ## HTTP Server (internal/server)
 

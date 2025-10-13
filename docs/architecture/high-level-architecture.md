@@ -133,4 +133,8 @@ graph TB
 
 - **Graceful Shutdown Pattern (优雅关闭模式)**: 捕获 SIGINT/SIGTERM 信号,等待活跃连接完成后关闭 - _Rationale:_ 确保请求处理完整,避免数据丢失或不一致状态
 
+- **Handler Factory Pattern (处理器工厂模式)**: MCP 工具通过 Handler() 工厂方法返回处理函数,使用闭包捕获依赖 - _Rationale:_ 遵循 MCP SDK v1.0 官方设计模式,将工具定义(Name, Description, InputSchema)与业务逻辑(Handler)分离,保持 Server 层简洁(50 行),业务逻辑封装在 Tools 层
+
+- **Parameter Schema Automation (参数模式自动化)**: 使用 jsonschema 标签自动生成 MCP InputSchema - _Rationale:_ 避免手动定义 JSON Schema,减少重复代码,确保参数定义与验证逻辑一致,遵循 DRY 原则
+
 ---

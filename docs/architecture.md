@@ -27,9 +27,10 @@ mkdir -p cmd/tmdb-mcp internal pkg
 
 ## Change Log
 
-| Date | Version | Description | Author |
-|------|---------|-------------|--------|
-| 2025-10-10 | 0.1 | 初始架构文档创建 | Winston (Architect) |
+| Date       | Version | Description                                                                      | Author              |
+| ---------- | ------- | -------------------------------------------------------------------------------- | ------------------- |
+| 2025-10-10 | 0.1     | 初始架构文档创建                                                                 | Winston (Architect) |
+| 2025-10-13 | 1.1     | v1.2 架构重构更新: 更新 MCP 工具实现模式,反映 Handler() 工厂方法和 jsonschema 标签 | Winston (Architect) |
 
 ---
 
@@ -168,6 +169,10 @@ graph TB
 
 - **Graceful Shutdown Pattern (优雅关闭模式)**: 捕获 SIGINT/SIGTERM 信号,等待活跃连接完成后关闭 - _Rationale:_ 确保请求处理完整,避免数据丢失或不一致状态
 
+- **Handler Factory Pattern (处理器工厂模式)**: MCP 工具通过 Handler() 工厂方法返回处理函数,使用闭包捕获依赖 - _Rationale:_ 遵循 MCP SDK v1.0 官方设计模式,将工具定义(Name, Description, InputSchema)与业务逻辑(Handler)分离,保持 Server 层简洁(50 行),业务逻辑封装在 Tools 层
+
+- **Parameter Schema Automation (参数模式自动化)**: 使用 jsonschema 标签自动生成 MCP InputSchema - _Rationale:_ 避免手动定义 JSON Schema,减少重复代码,确保参数定义与验证逻辑一致,遵循 DRY 原则
+
 ---
 
 ## Tech Stack
@@ -191,24 +196,24 @@ graph TB
 
 基于 PRD Technical Assumptions 和精简原则，以下是最终技术栈选择：
 
-| Category | Technology | Version | Purpose | Rationale |
-|----------|-----------|---------|---------|-----------|
-| **Language** | Go | 1.21+ | 主开发语言 | 类型安全、高性能、优秀并发模型、编译为独立二进制 |
-| **Runtime** | Go Runtime | 1.21+ | 程序运行环境 | 跨平台支持（Linux/macOS/Windows）、静态链接、启动快 |
-| **MCP SDK** | `github.com/modelcontextprotocol/go-sdk` | 最新稳定版 | MCP 协议实现 | 官方 Go SDK，内置 stdio 和 SSE 支持，遵循规范 |
-| **HTTP Client** | `github.com/go-resty/resty/v2` | v2.11.0+ | TMDB API 调用 | 链式 API、自动重试、中间件支持、超时控制 |
-| **HTTP Server** | `net/http` (标准库) | Go 1.21+ | SSE HTTP 服务器 | 标准库稳定可靠、零依赖、配合 MCP SDK 的 SSEHTTPHandler |
-| **Rate Limiter** | `golang.org/x/time/rate` | v0.5.0+ | API 速率限制 | 官方扩展库、Token Bucket 算法、并发安全 |
-| **Logging** | `go.uber.org/zap` | v1.26.0+ | 结构化日志 | 高性能、零分配、JSON 输出、日志级别控制 |
-| **Configuration** | `github.com/spf13/viper` | v1.18.0+ | 配置管理 | 多源支持（文件/ENV/CLI）、优先级控制、热重载 |
-| **Testing** | `testing` (标准库) | Go 1.21+ | 单元测试 | Go 原生测试框架，`go test` 命令 |
-| **Testing - Mocking** | `github.com/stretchr/testify` | v1.8.4+ | Mock 和断言 | 丰富的断言、Mock 支持、与标准库兼容 |
-| **Security - Token** | `crypto/rand` (标准库) | Go 1.21+ | SSE Token 生成 | 加密安全的随机数生成、标准库零依赖 |
-| **Security - Auth** | `crypto/subtle` (标准库) | Go 1.21+ | Token 比对 | 常量时间比对，防止时序攻击 |
-| **Build Tool** | `go build` | Go 1.21+ | 编译二进制 | Go 原生工具，无需 Makefile |
-| **Formatting** | `go fmt` | Go 1.21+ | 代码格式化 | Go 官方格式化工具 |
-| **Static Analysis** | `go vet` | Go 1.21+ | 静态检查 | Go 官方静态分析工具 |
-| **Containerization** | Docker | 24.0+ | 容器化部署 | 多平台镜像、轻量 Alpine 基础镜像、Docker Compose 支持 |
+| Category              | Technology                               | Version    | Purpose         | Rationale                                              |
+| --------------------- | ---------------------------------------- | ---------- | --------------- | ------------------------------------------------------ |
+| **Language**          | Go                                       | 1.21+      | 主开发语言      | 类型安全、高性能、优秀并发模型、编译为独立二进制       |
+| **Runtime**           | Go Runtime                               | 1.21+      | 程序运行环境    | 跨平台支持（Linux/macOS/Windows）、静态链接、启动快    |
+| **MCP SDK**           | `github.com/modelcontextprotocol/go-sdk` | 最新稳定版 | MCP 协议实现    | 官方 Go SDK，内置 stdio 和 SSE 支持，遵循规范          |
+| **HTTP Client**       | `github.com/go-resty/resty/v2`           | v2.11.0+   | TMDB API 调用   | 链式 API、自动重试、中间件支持、超时控制               |
+| **HTTP Server**       | `net/http` (标准库)                      | Go 1.21+   | SSE HTTP 服务器 | 标准库稳定可靠、零依赖、配合 MCP SDK 的 SSEHTTPHandler |
+| **Rate Limiter**      | `golang.org/x/time/rate`                 | v0.5.0+    | API 速率限制    | 官方扩展库、Token Bucket 算法、并发安全                |
+| **Logging**           | `go.uber.org/zap`                        | v1.26.0+   | 结构化日志      | 高性能、零分配、JSON 输出、日志级别控制                |
+| **Configuration**     | `github.com/spf13/viper`                 | v1.18.0+   | 配置管理        | 多源支持（文件/ENV/CLI）、优先级控制、热重载           |
+| **Testing**           | `testing` (标准库)                       | Go 1.21+   | 单元测试        | Go 原生测试框架，`go test` 命令                        |
+| **Testing - Mocking** | `github.com/stretchr/testify`            | v1.8.4+    | Mock 和断言     | 丰富的断言、Mock 支持、与标准库兼容                    |
+| **Security - Token**  | `crypto/rand` (标准库)                   | Go 1.21+   | SSE Token 生成  | 加密安全的随机数生成、标准库零依赖                     |
+| **Security - Auth**   | `crypto/subtle` (标准库)                 | Go 1.21+   | Token 比对      | 常量时间比对，防止时序攻击                             |
+| **Build Tool**        | `go build`                               | Go 1.21+   | 编译二进制      | Go 原生工具，无需 Makefile                             |
+| **Formatting**        | `go fmt`                                 | Go 1.21+   | 代码格式化      | Go 官方格式化工具                                      |
+| **Static Analysis**   | `go vet`                                 | Go 1.21+   | 静态检查        | Go 官方静态分析工具                                    |
+| **Containerization**  | Docker                                   | 24.0+      | 容器化部署      | 多平台镜像、轻量 Alpine 基础镜像、Docker Compose 支持  |
 
 ### 关键技术决策说明
 
@@ -416,12 +421,14 @@ type PersonDetails struct {
 
 **Purpose**: 定义 MCP 工具的输入参数结构，用于参数验证和类型转换
 
+**jsonschema 标签**: MCP SDK v1.0+ 支持自动从 jsonschema 标签生成 InputSchema,无需手动定义。这遵循官方 SDK 的最佳实践,显著简化了工具定义。
+
 #### SearchParams
 
 ```go
 type SearchParams struct {
-    Query string `json:"query"` // 搜索关键词（必需）
-    Page  int    `json:"page"`  // 页码（可选，默认 1）
+    Query string `json:"query" jsonschema:"Search query for movies, TV shows, and people"` // 搜索关键词（必需）
+    Page  int    `json:"page" jsonschema:"Page number (default: 1)"`                       // 页码（可选，默认 1）
 }
 ```
 
@@ -700,31 +707,49 @@ if err := limiter.Wait(ctx); err != nil {
 
 **Tool Registration**:
 ```go
-func NewServer(tmdbClient *tmdb.Client, logger *zap.Logger) *mcp.Server {
-    server := mcp.NewServer(mcp.ServerInfo{
+func NewServer(tmdbClient *tmdb.Client, logger *zap.Logger) *Server {
+    // Create server options
+    opts := &mcp.ServerOptions{
+        Instructions: "TMDB Movie Database MCP Server - provides tools for searching and retrieving movie information",
+    }
+
+    // Create MCP server with implementation info
+    mcpServer := mcp.NewServer(&mcp.Implementation{
         Name:    "tmdb-mcp",
         Version: "1.0.0",
-    })
+    }, opts)
 
-    // 注册 6 个工具
-    server.AddTool(tools.NewSearchTool(tmdbClient, logger))
-    server.AddTool(tools.NewGetDetailsTool(tmdbClient, logger))
-    server.AddTool(tools.NewDiscoverMoviesTool(tmdbClient, logger))
-    server.AddTool(tools.NewDiscoverTVTool(tmdbClient, logger))
-    server.AddTool(tools.NewGetTrendingTool(tmdbClient, logger))
-    server.AddTool(tools.NewGetRecommendationsTool(tmdbClient, logger))
+    // Create and register search tool
+    searchTool := tools.NewSearchTool(tmdbClient, logger)
+    mcp.AddTool(mcpServer, &mcp.Tool{
+        Name:        searchTool.Name(),
+        Description: searchTool.Description(),
+    }, searchTool.Handler())
 
-    return server
+    // 其他 5 个工具同理注册...
+
+    return &Server{
+        mcpServer:  mcpServer,
+        tmdbClient: tmdbClient,
+        logger:     logger,
+    }
 }
 ```
+
+**设计说明**:
+- **Server 层职责**: 仅负责工具注册,不包含业务逻辑(50 行代码)
+- **Tools 层职责**: 提供 `Handler()` 工厂方法,返回符合 MCP SDK 签名的处理函数
+- **闭包模式**: `Handler()` 返回的闭包自动捕获 `tmdbClient` 和 `logger` 依赖
+- **SDK 自动处理**: jsonschema 标签自动生成 InputSchema,SDK 自动解析和验证参数
 
 ### MCP Tools (internal/tools)
 
 **Responsibility**: 实现 6 个 MCP 工具，处理参数验证和结果转换
 
 **Key Interfaces**:
-- `func (t *SearchTool) Call(ctx context.Context, params json.RawMessage) (interface{}, error)`
-- 每个工具实现 `mcp.Tool` 接口
+- `func (t *SearchTool) Name() string` - 返回工具名称
+- `func (t *SearchTool) Description() string` - 返回工具描述
+- `func (t *SearchTool) Handler() func(...)` - 返回处理函数（工厂方法）
 
 **Dependencies**: TMDB Client, Logger
 
@@ -750,32 +775,50 @@ func (t *SearchTool) Name() string {
 }
 
 func (t *SearchTool) Description() string {
-    return "Search for movies, TV shows, and people on TMDB"
+    return "Search for movies, TV shows, and people on TMDB using a query string"
 }
 
-func (t *SearchTool) Call(ctx context.Context, params json.RawMessage) (interface{}, error) {
-    // 1. 解析参数
-    var searchParams SearchParams
-    if err := json.Unmarshal(params, &searchParams); err != nil {
-        return nil, err
-    }
+// Handler 返回一个符合 MCP SDK 签名的处理函数
+// 这允许工具在 MCP Server 中注册,同时将业务逻辑封装在 SearchTool 中
+func (t *SearchTool) Handler() func(context.Context, *mcp.CallToolRequest, SearchParams) (*mcp.CallToolResult, SearchResponse, error) {
+    return func(ctx context.Context, req *mcp.CallToolRequest, params SearchParams) (*mcp.CallToolResult, SearchResponse, error) {
+        // 1. 设置默认值
+        if params.Page == 0 {
+            params.Page = 1
+        }
 
-    // 2. 验证参数
-    if searchParams.Query == "" {
-        return nil, errors.New("query parameter is required")
-    }
+        // 2. 记录请求日志
+        t.logger.Info("Search request received",
+            zap.String("query", params.Query),
+            zap.Int("page", params.Page),
+        )
 
-    // 3. 调用 TMDB Client
-    results, err := t.tmdbClient.Search(ctx, searchParams.Query, searchParams.Page)
-    if err != nil {
-        t.logger.Error("Search failed", zap.Error(err))
-        return nil, err
-    }
+        // 3. 调用 TMDB Client (参数验证在 Client 层完成)
+        results, err := t.tmdbClient.Search(ctx, params.Query, params.Page)
+        if err != nil {
+            t.logger.Error("Search failed",
+                zap.Error(err),
+                zap.String("query", params.Query),
+            )
+            return nil, SearchResponse{}, err
+        }
 
-    // 4. 返回结果
-    return results, nil
+        t.logger.Info("Search completed",
+            zap.String("query", params.Query),
+            zap.Int("results", len(results.Results)),
+        )
+
+        // 4. 返回空的 CallToolResult 和结构化响应
+        return &mcp.CallToolResult{}, SearchResponse{Results: results.Results}, nil
+    }
 }
 ```
+
+**设计说明**:
+- **Handler() 工厂方法**: 返回闭包函数,自动捕获 `tmdbClient` 和 `logger` 依赖
+- **类型安全参数**: MCP SDK 自动从 SearchParams 的 jsonschema 标签生成 InputSchema 并验证参数
+- **职责分离**: Tools 层只处理日志和默认值,参数验证在 Client 层统一完成
+- **闭包模式**: 避免全局变量,每个工具实例独立维护依赖
 
 ### HTTP Server (internal/server)
 
@@ -995,17 +1038,17 @@ sequenceDiagram
 
 **Key Endpoints Used**:
 
-| Endpoint | Method | Purpose | 映射工具 |
-|----------|--------|---------|---------|
-| `/search/multi` | GET | 搜索电影/电视剧/人物 | search |
-| `/movie/{id}` | GET | 获取电影详情 | get_details |
-| `/tv/{id}` | GET | 获取电视剧详情 | get_details |
-| `/person/{id}` | GET | 获取人物详情 | get_details |
-| `/discover/movie` | GET | 发现电影（筛选） | discover_movies |
-| `/discover/tv` | GET | 发现电视剧（筛选） | discover_tv |
-| `/trending/{media_type}/{time_window}` | GET | 获取热门内容 | get_trending |
-| `/movie/{id}/recommendations` | GET | 获取电影推荐 | get_recommendations |
-| `/tv/{id}/recommendations` | GET | 获取电视剧推荐 | get_recommendations |
+| Endpoint                               | Method | Purpose              | 映射工具            |
+| -------------------------------------- | ------ | -------------------- | ------------------- |
+| `/search/multi`                        | GET    | 搜索电影/电视剧/人物 | search              |
+| `/movie/{id}`                          | GET    | 获取电影详情         | get_details         |
+| `/tv/{id}`                             | GET    | 获取电视剧详情       | get_details         |
+| `/person/{id}`                         | GET    | 获取人物详情         | get_details         |
+| `/discover/movie`                      | GET    | 发现电影（筛选）     | discover_movies     |
+| `/discover/tv`                         | GET    | 发现电视剧（筛选）   | discover_tv         |
+| `/trending/{media_type}/{time_window}` | GET    | 获取热门内容         | get_trending        |
+| `/movie/{id}/recommendations`          | GET    | 获取电影推荐         | get_recommendations |
+| `/tv/{id}/recommendations`             | GET    | 获取电视剧推荐       | get_recommendations |
 
 **Integration Notes**:
 
@@ -1245,16 +1288,16 @@ CMD ["./tmdb-mcp"]
 
 ### Environment Variables
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `TMDB_API_KEY` | TMDB API 密钥 | - | ✅ Yes |
-| `SSE_TOKEN` | SSE 认证 Token | 自动生成 | ❌ No |
-| `SERVER_MODE` | 运行模式（stdio/sse/both） | `both` | ❌ No |
-| `SERVER_SSE_HOST` | SSE 监听地址 | `0.0.0.0` | ❌ No |
-| `SERVER_SSE_PORT` | SSE 监听端口 | `8910` | ❌ No |
-| `TMDB_LANGUAGE` | 语言偏好 | `en-US` | ❌ No |
-| `TMDB_RATE_LIMIT` | 速率限制（req/10s） | `40` | ❌ No |
-| `LOGGING_LEVEL` | 日志级别 | `info` | ❌ No |
+| Variable          | Description                | Default   | Required |
+| ----------------- | -------------------------- | --------- | -------- |
+| `TMDB_API_KEY`    | TMDB API 密钥              | -         | ✅ Yes    |
+| `SSE_TOKEN`       | SSE 认证 Token             | 自动生成  | ❌ No     |
+| `SERVER_MODE`     | 运行模式（stdio/sse/both） | `both`    | ❌ No     |
+| `SERVER_SSE_HOST` | SSE 监听地址               | `0.0.0.0` | ❌ No     |
+| `SERVER_SSE_PORT` | SSE 监听端口               | `8910`    | ❌ No     |
+| `TMDB_LANGUAGE`   | 语言偏好                   | `en-US`   | ❌ No     |
+| `TMDB_RATE_LIMIT` | 速率限制（req/10s）        | `40`      | ❌ No     |
+| `LOGGING_LEVEL`   | 日志级别                   | `info`    | ❌ No     |
 
 ### Docker Compose 示例
 
@@ -1446,15 +1489,15 @@ func (c *Client) handleError(resp *resty.Response) error {
 
 ### Naming Conventions
 
-| Element | Convention | Example |
-|---------|-----------|---------|
-| 包名 | 小写单词 | `package tmdb` |
-| 文件名 | 小写蛇形命名 | `get_details.go` |
-| 结构体 | 大驼峰（exported）| `type TMDBClient struct` |
-| 接口 | 大驼峰，-er 后缀 | `type Limiter interface` |
-| 函数 | 大驼峰（exported）| `func NewClient()` |
-| 变量 | 小驼峰 | `var apiKey string` |
-| 常量 | 大驼峰或全大写 | `const DefaultPort = 8910` |
+| Element | Convention         | Example                    |
+| ------- | ------------------ | -------------------------- |
+| 包名    | 小写单词           | `package tmdb`             |
+| 文件名  | 小写蛇形命名       | `get_details.go`           |
+| 结构体  | 大驼峰（exported） | `type TMDBClient struct`   |
+| 接口    | 大驼峰，-er 后缀   | `type Limiter interface`   |
+| 函数    | 大驼峰（exported） | `func NewClient()`         |
+| 变量    | 小驼峰             | `var apiKey string`        |
+| 常量    | 大驼峰或全大写     | `const DefaultPort = 8910` |
 
 ### Critical Rules
 

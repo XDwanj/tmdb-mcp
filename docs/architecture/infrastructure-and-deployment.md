@@ -84,16 +84,16 @@ CMD ["./tmdb-mcp"]
 
 ## Environment Variables
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `TMDB_API_KEY` | TMDB API 密钥 | - | ✅ Yes |
-| `SSE_TOKEN` | SSE 认证 Token | 自动生成 | ❌ No |
-| `SERVER_MODE` | 运行模式（stdio/sse/both） | `both` | ❌ No |
-| `SERVER_SSE_HOST` | SSE 监听地址 | `0.0.0.0` | ❌ No |
-| `SERVER_SSE_PORT` | SSE 监听端口 | `8910` | ❌ No |
-| `TMDB_LANGUAGE` | 语言偏好 | `en-US` | ❌ No |
-| `TMDB_RATE_LIMIT` | 速率限制（req/10s） | `40` | ❌ No |
-| `LOGGING_LEVEL` | 日志级别 | `info` | ❌ No |
+| Variable          | Description                | Default   | Required |
+| ----------------- | -------------------------- | --------- | -------- |
+| `TMDB_API_KEY`    | TMDB API 密钥              | -         | ✅ Yes    |
+| `SSE_TOKEN`       | SSE 认证 Token             | 自动生成  | ❌ No     |
+| `SERVER_MODE`     | 运行模式（stdio/sse/both） | `both`    | ❌ No     |
+| `SERVER_SSE_HOST` | SSE 监听地址               | `0.0.0.0` | ❌ No     |
+| `SERVER_SSE_PORT` | SSE 监听端口               | `8910`    | ❌ No     |
+| `TMDB_LANGUAGE`   | 语言偏好                   | `en-US`   | ❌ No     |
+| `TMDB_RATE_LIMIT` | 速率限制（req/10s）        | `40`      | ❌ No     |
+| `LOGGING_LEVEL`   | 日志级别                   | `info`    | ❌ No     |
 
 ## Docker Compose 示例
 

@@ -19,24 +19,24 @@
 
 基于 PRD Technical Assumptions 和精简原则，以下是最终技术栈选择：
 
-| Category | Technology | Version | Purpose | Rationale |
-|----------|-----------|---------|---------|-----------|
-| **Language** | Go | 1.21+ | 主开发语言 | 类型安全、高性能、优秀并发模型、编译为独立二进制 |
-| **Runtime** | Go Runtime | 1.21+ | 程序运行环境 | 跨平台支持（Linux/macOS/Windows）、静态链接、启动快 |
-| **MCP SDK** | `github.com/modelcontextprotocol/go-sdk` | 最新稳定版 | MCP 协议实现 | 官方 Go SDK，内置 stdio 和 SSE 支持，遵循规范 |
-| **HTTP Client** | `github.com/go-resty/resty/v2` | v2.11.0+ | TMDB API 调用 | 链式 API、自动重试、中间件支持、超时控制 |
-| **HTTP Server** | `net/http` (标准库) | Go 1.21+ | SSE HTTP 服务器 | 标准库稳定可靠、零依赖、配合 MCP SDK 的 SSEHTTPHandler |
-| **Rate Limiter** | `golang.org/x/time/rate` | v0.5.0+ | API 速率限制 | 官方扩展库、Token Bucket 算法、并发安全 |
-| **Logging** | `go.uber.org/zap` | v1.26.0+ | 结构化日志 | 高性能、零分配、JSON 输出、日志级别控制 |
-| **Configuration** | `github.com/spf13/viper` | v1.18.0+ | 配置管理 | 多源支持（文件/ENV/CLI）、优先级控制、热重载 |
-| **Testing** | `testing` (标准库) | Go 1.21+ | 单元测试 | Go 原生测试框架，`go test` 命令 |
-| **Testing - Mocking** | `github.com/stretchr/testify` | v1.8.4+ | Mock 和断言 | 丰富的断言、Mock 支持、与标准库兼容 |
-| **Security - Token** | `crypto/rand` (标准库) | Go 1.21+ | SSE Token 生成 | 加密安全的随机数生成、标准库零依赖 |
-| **Security - Auth** | `crypto/subtle` (标准库) | Go 1.21+ | Token 比对 | 常量时间比对，防止时序攻击 |
-| **Build Tool** | `go build` | Go 1.21+ | 编译二进制 | Go 原生工具，无需 Makefile |
-| **Formatting** | `go fmt` | Go 1.21+ | 代码格式化 | Go 官方格式化工具 |
-| **Static Analysis** | `go vet` | Go 1.21+ | 静态检查 | Go 官方静态分析工具 |
-| **Containerization** | Docker | 24.0+ | 容器化部署 | 多平台镜像、轻量 Alpine 基础镜像、Docker Compose 支持 |
+| Category              | Technology                               | Version    | Purpose         | Rationale                                              |
+| --------------------- | ---------------------------------------- | ---------- | --------------- | ------------------------------------------------------ |
+| **Language**          | Go                                       | 1.21+      | 主开发语言      | 类型安全、高性能、优秀并发模型、编译为独立二进制       |
+| **Runtime**           | Go Runtime                               | 1.21+      | 程序运行环境    | 跨平台支持（Linux/macOS/Windows）、静态链接、启动快    |
+| **MCP SDK**           | `github.com/modelcontextprotocol/go-sdk` | 最新稳定版 | MCP 协议实现    | 官方 Go SDK，内置 stdio 和 SSE 支持，遵循规范          |
+| **HTTP Client**       | `github.com/go-resty/resty/v2`           | v2.11.0+   | TMDB API 调用   | 链式 API、自动重试、中间件支持、超时控制               |
+| **HTTP Server**       | `net/http` (标准库)                      | Go 1.21+   | SSE HTTP 服务器 | 标准库稳定可靠、零依赖、配合 MCP SDK 的 SSEHTTPHandler |
+| **Rate Limiter**      | `golang.org/x/time/rate`                 | v0.5.0+    | API 速率限制    | 官方扩展库、Token Bucket 算法、并发安全                |
+| **Logging**           | `go.uber.org/zap`                        | v1.26.0+   | 结构化日志      | 高性能、零分配、JSON 输出、日志级别控制                |
+| **Configuration**     | `github.com/spf13/viper`                 | v1.18.0+   | 配置管理        | 多源支持（文件/ENV/CLI）、优先级控制、热重载           |
+| **Testing**           | `testing` (标准库)                       | Go 1.21+   | 单元测试        | Go 原生测试框架，`go test` 命令                        |
+| **Testing - Mocking** | `github.com/stretchr/testify`            | v1.8.4+    | Mock 和断言     | 丰富的断言、Mock 支持、与标准库兼容                    |
+| **Security - Token**  | `crypto/rand` (标准库)                   | Go 1.21+   | SSE Token 生成  | 加密安全的随机数生成、标准库零依赖                     |
+| **Security - Auth**   | `crypto/subtle` (标准库)                 | Go 1.21+   | Token 比对      | 常量时间比对，防止时序攻击                             |
+| **Build Tool**        | `go build`                               | Go 1.21+   | 编译二进制      | Go 原生工具，无需 Makefile                             |
+| **Formatting**        | `go fmt`                                 | Go 1.21+   | 代码格式化      | Go 官方格式化工具                                      |
+| **Static Analysis**   | `go vet`                                 | Go 1.21+   | 静态检查        | Go 官方静态分析工具                                    |
+| **Containerization**  | Docker                                   | 24.0+      | 容器化部署      | 多平台镜像、轻量 Alpine 基础镜像、Docker Compose 支持  |
 
 ## 关键技术决策说明
 

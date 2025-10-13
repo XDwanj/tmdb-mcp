@@ -21,15 +21,15 @@
 
 ## Naming Conventions
 
-| Element | Convention | Example |
-|---------|-----------|---------|
-| 包名 | 小写单词 | `package tmdb` |
-| 文件名 | 小写蛇形命名 | `get_details.go` |
-| 结构体 | 大驼峰（exported）| `type TMDBClient struct` |
-| 接口 | 大驼峰，-er 后缀 | `type Limiter interface` |
-| 函数 | 大驼峰（exported）| `func NewClient()` |
-| 变量 | 小驼峰 | `var apiKey string` |
-| 常量 | 大驼峰或全大写 | `const DefaultPort = 8910` |
+| Element | Convention         | Example                    |
+| ------- | ------------------ | -------------------------- |
+| 包名    | 小写单词           | `package tmdb`             |
+| 文件名  | 小写蛇形命名       | `get_details.go`           |
+| 结构体  | 大驼峰（exported） | `type TMDBClient struct`   |
+| 接口    | 大驼峰，-er 后缀   | `type Limiter interface`   |
+| 函数    | 大驼峰（exported） | `func NewClient()`         |
+| 变量    | 小驼峰             | `var apiKey string`        |
+| 常量    | 大驼峰或全大写     | `const DefaultPort = 8910` |
 
 ## Critical Rules
 

@@ -138,12 +138,14 @@ type PersonDetails struct {
 
 **Purpose**: 定义 MCP 工具的输入参数结构，用于参数验证和类型转换
 
+**jsonschema 标签**: MCP SDK v1.0+ 支持自动从 jsonschema 标签生成 InputSchema,无需手动定义。这遵循官方 SDK 的最佳实践,显著简化了工具定义。
+
 ### SearchParams
 
 ```go
 type SearchParams struct {
-    Query string `json:"query"` // 搜索关键词（必需）
-    Page  int    `json:"page"`  // 页码（可选，默认 1）
+    Query string `json:"query" jsonschema:"Search query for movies, TV shows, and people"` // 搜索关键词（必需）
+    Page  int    `json:"page" jsonschema:"Page number (default: 1)"`                       // 页码（可选，默认 1）
 }
 ```
 
