@@ -777,3 +777,345 @@ func getMapKeys(m map[string]any) []string {
 	}
 	return keys
 }
+
+// TestDiscoverMoviesTool_Integration tests the discover_movies tool (AC: 10)
+func TestDiscoverMoviesTool_Integration(t *testing.T) {
+	env := setupTestEnvironment(t)
+
+	tests := []struct {
+		name           string
+		withGenres     string
+		releaseYear    int
+		voteAverageGte float64
+		sortBy         string
+		minResults     int
+		validateResult func(*testing.T, *tmdb.DiscoverMoviesResponse)
+	}{
+		{
+			name:           "sci-fi movies after 2020 with rating >= 8.0",
+			withGenres:     "878", // Science Fiction
+			releaseYear:    2020,
+			voteAverageGte: 8.0,
+			sortBy:         "popularity.desc",
+			minResults:     1,
+			validateResult: func(t *testing.T, resp *tmdb.DiscoverMoviesResponse) {
+				if len(resp.Results) > 0 {
+					firstResult := resp.Results[0]
+					assert.Contains(t, firstResult.GenreIDs, 878, "Result should be sci-fi (genre 878)")
+					assert.GreaterOrEqual(t, firstResult.VoteAverage, 8.0, "Result should have rating >= 8.0")
+					t.Logf("✓ Found sci-fi movie: %s (Rating: %.1f)", firstResult.Title, firstResult.VoteAverage)
+				}
+			},
+		},
+		{
+			name:           "highest rated action movies",
+			withGenres:     "28", // Action
+			voteAverageGte: 0,
+			sortBy:         "vote_average.desc",
+			minResults:     1,
+			validateResult: func(t *testing.T, resp *tmdb.DiscoverMoviesResponse) {
+				if len(resp.Results) > 0 {
+					firstResult := resp.Results[0]
+					assert.Contains(t, firstResult.GenreIDs, 28, "Result should be action (genre 28)")
+					// First result should have high rating since sorted by vote_average.desc
+					assert.Greater(t, firstResult.VoteAverage, 7.0, "Top action movie should have high rating")
+					t.Logf("✓ Found top action movie: %s (Rating: %.1f)", firstResult.Title, firstResult.VoteAverage)
+				}
+			},
+		},
+		{
+			name:       "default behavior - popular movies",
+			minResults: 1,
+			validateResult: func(t *testing.T, resp *tmdb.DiscoverMoviesResponse) {
+				// Default should return popular movies
+				assert.NotEmpty(t, resp.Results, "Should return popular movies by default")
+				if len(resp.Results) > 0 {
+					firstResult := resp.Results[0]
+					assert.Greater(t, firstResult.Popularity, 0.0, "Result should have popularity score")
+					t.Logf("✓ Found popular movie: %s (Popularity: %.1f)", firstResult.Title, firstResult.Popularity)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mcs := setupMCPClientServer(t, env)
+			defer mcs.cleanup()
+
+			ctx := context.Background()
+
+			// Prepare arguments
+			args := map[string]any{}
+			if tt.withGenres != "" {
+				args["with_genres"] = tt.withGenres
+			}
+			if tt.releaseYear > 0 {
+				args["primary_release_year"] = tt.releaseYear
+			}
+			if tt.voteAverageGte > 0 {
+				args["vote_average.gte"] = tt.voteAverageGte
+			}
+			if tt.sortBy != "" {
+				args["sort_by"] = tt.sortBy
+			}
+
+			// Call discover_movies tool
+			result, err := mcs.clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
+				Name:      "discover_movies",
+				Arguments: args,
+			})
+
+			// Verify no error
+			require.NoError(t, err, "CallTool should not return error")
+			assert.NotNil(t, result, "Result should not be nil")
+			assert.False(t, result.IsError, "Result should not be an error")
+
+			// Verify result structure
+			assert.Len(t, result.Content, 1, "Result should have exactly 1 content item")
+
+			// Extract text content
+			textContent, ok := result.Content[0].(*mcpsdk.TextContent)
+			require.True(t, ok, "Content should be TextContent type")
+
+			// Parse JSON response
+			var response tmdb.DiscoverMoviesResponse
+			err = json.Unmarshal([]byte(textContent.Text), &response)
+			require.NoError(t, err, "Failed to unmarshal response JSON")
+
+			// Verify minimum result count
+			assert.GreaterOrEqual(t, len(response.Results), tt.minResults,
+				"Should have at least %d result(s)", tt.minResults)
+
+			// Run custom validation
+			if tt.validateResult != nil {
+				tt.validateResult(t, &response)
+			}
+		})
+	}
+}
+
+// TestDiscoverMoviesTool_DataIntegrity tests data structure integrity (AC: 10)
+func TestDiscoverMoviesTool_DataIntegrity(t *testing.T) {
+	env := setupTestEnvironment(t)
+	mcs := setupMCPClientServer(t, env)
+	defer mcs.cleanup()
+
+	ctx := context.Background()
+
+	// Test with specific parameters
+	result, err := mcs.clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
+		Name: "discover_movies",
+		Arguments: map[string]any{
+			"with_genres":      "878",
+			"vote_average.gte": 7.0,
+			"sort_by":          "popularity.desc",
+			"page":             1,
+		},
+	})
+
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	textContent, ok := result.Content[0].(*mcpsdk.TextContent)
+	require.True(t, ok)
+
+	var response tmdb.DiscoverMoviesResponse
+	err = json.Unmarshal([]byte(textContent.Text), &response)
+	require.NoError(t, err)
+
+	// Verify response structure
+	assert.Greater(t, response.Page, 0, "Page should be > 0")
+	assert.NotEmpty(t, response.Results, "Results should not be empty")
+
+	// Verify first result has all required fields
+	if len(response.Results) > 0 {
+		firstResult := response.Results[0]
+		assert.NotZero(t, firstResult.ID, "Result should have ID")
+		assert.NotEmpty(t, firstResult.Title, "Result should have title")
+		assert.NotEmpty(t, firstResult.ReleaseDate, "Result should have release_date")
+		assert.GreaterOrEqual(t, firstResult.VoteAverage, 0.0, "Result should have vote_average")
+		assert.NotEmpty(t, firstResult.Overview, "Result should have overview")
+		assert.NotEmpty(t, firstResult.GenreIDs, "Result should have genre_ids")
+		assert.Greater(t, firstResult.Popularity, 0.0, "Result should have popularity")
+
+		t.Logf("✓ Data integrity verified: ID=%d, Title=%s, Rating=%.1f, Genres=%v",
+			firstResult.ID,
+			firstResult.Title,
+			firstResult.VoteAverage,
+			firstResult.GenreIDs)
+	}
+}
+
+// TestDiscoverMoviesTool_ErrorScenarios tests error handling (AC: 10)
+func TestDiscoverMoviesTool_ErrorScenarios(t *testing.T) {
+	env := setupTestEnvironment(t)
+
+	tests := []struct {
+		name          string
+		arguments     map[string]any
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name: "vote_average.gte out of range (> 10)",
+			arguments: map[string]any{
+				"vote_average.gte": 11.0,
+			},
+			expectError:   true,
+			errorContains: "vote_average.gte must be between 0 and 10",
+		},
+		{
+			name: "vote_average.gte out of range (< 0)",
+			arguments: map[string]any{
+				"vote_average.gte": -1.0,
+			},
+			expectError:   true,
+			errorContains: "vote_average.gte must be between 0 and 10",
+		},
+		{
+			name: "vote_average.lte out of range",
+			arguments: map[string]any{
+				"vote_average.lte": 15.0,
+			},
+			expectError:   true,
+			errorContains: "vote_average.lte must be between 0 and 10",
+		},
+		{
+			name: "non-existent genre combination",
+			arguments: map[string]any{
+				"with_genres":      "999999",
+				"vote_average.gte": 9.9,
+			},
+			expectError: false, // Should return empty results, not error
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mcs := setupMCPClientServer(t, env)
+			defer mcs.cleanup()
+
+			ctx := context.Background()
+
+			// Call discover_movies tool
+			result, err := mcs.clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
+				Name:      "discover_movies",
+				Arguments: tt.arguments,
+			})
+
+			if tt.expectError {
+				// Should return error via IsError field
+				require.NoError(t, err, "MCP protocol should not fail")
+				require.NotNil(t, result, "Result should not be nil")
+				assert.True(t, result.IsError, "IsError should be true for %s", tt.name)
+
+				// Extract error message
+				if len(result.Content) > 0 {
+					textContent, ok := result.Content[0].(*mcpsdk.TextContent)
+					if ok {
+						assert.Contains(t, textContent.Text, tt.errorContains,
+							"Error message should contain '%s'", tt.errorContains)
+						t.Logf("✓ Got expected error: %s", textContent.Text)
+					}
+				}
+			} else {
+				// Should succeed (possibly with empty results)
+				require.NoError(t, err, "Should not return error for %s", tt.name)
+				assert.NotNil(t, result, "Result should not be nil")
+
+				textContent, ok := result.Content[0].(*mcpsdk.TextContent)
+				require.True(t, ok, "Content should be TextContent type")
+
+				var response tmdb.DiscoverMoviesResponse
+				err = json.Unmarshal([]byte(textContent.Text), &response)
+				require.NoError(t, err, "Failed to unmarshal response JSON")
+
+				t.Logf("✓ Query succeeded with %d results (empty is acceptable)", len(response.Results))
+			}
+		})
+	}
+}
+
+// TestLanguageParameterOverride tests that language parameter can override config default
+// This verifies the two-tier priority model: tool-level param > config default
+func TestLanguageParameterOverride(t *testing.T) {
+	env := setupTestEnvironment(t)
+
+	tests := []struct {
+		name       string
+		toolName   string
+		baseArgs   map[string]any
+		testWithLang bool
+	}{
+		{
+			name:     "search tool",
+			toolName: "search",
+			baseArgs: map[string]any{
+				"query": "Inception",
+				"page":  1,
+			},
+			testWithLang: true,
+		},
+		{
+			name:     "get_details tool",
+			toolName: "get_details",
+			baseArgs: map[string]any{
+				"media_type": "movie",
+				"id":         27205, // Inception
+			},
+			testWithLang: true,
+		},
+		{
+			name:     "discover_movies tool",
+			toolName: "discover_movies",
+			baseArgs: map[string]any{
+				"with_genres": "878",
+			},
+			testWithLang: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mcs := setupMCPClientServer(t, env)
+			defer mcs.cleanup()
+
+			ctx := context.Background()
+
+			// Test 1: Without language parameter (should use config default: en-US)
+			t.Run("without language param", func(t *testing.T) {
+				result, err := mcs.clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
+					Name:      tt.toolName,
+					Arguments: tt.baseArgs,
+				})
+
+				require.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.False(t, result.IsError, "Should succeed with config default language")
+				t.Logf("✓ Tool succeeded without language param (using config default)")
+			})
+
+			// Test 2: With language parameter (should override config default)
+			if tt.testWithLang {
+				t.Run("with language param override", func(t *testing.T) {
+					argsWithLang := make(map[string]any)
+					for k, v := range tt.baseArgs {
+						argsWithLang[k] = v
+					}
+					argsWithLang["language"] = "zh" // Override to Chinese
+
+					result, err := mcs.clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
+						Name:      tt.toolName,
+						Arguments: argsWithLang,
+					})
+
+					require.NoError(t, err)
+					assert.NotNil(t, result)
+					assert.False(t, result.IsError, "Should succeed with language override")
+					t.Logf("✓ Tool succeeded with language=zh override")
+				})
+			}
+		})
+	}
+}

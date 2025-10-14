@@ -37,7 +37,7 @@ func TestSearchIntegration_Inception(t *testing.T) {
 
 	// Search for "Inception"
 	ctx := context.Background()
-	results, err := client.Search(ctx, "Inception", 1)
+	results, err := client.Search(ctx, "Inception", 1, nil)
 
 	// Assertions
 	assert.NoError(t, err)
@@ -80,7 +80,7 @@ func TestSearchIntegration_ChristopherNolan(t *testing.T) {
 
 	// Search for "Christopher Nolan"
 	ctx := context.Background()
-	results, err := client.Search(ctx, "Christopher Nolan", 1)
+	results, err := client.Search(ctx, "Christopher Nolan", 1, nil)
 
 	// Assertions
 	assert.NoError(t, err)
@@ -122,7 +122,7 @@ func TestSearchIntegration_NonExistentContent(t *testing.T) {
 
 	// Search for non-existent content
 	ctx := context.Background()
-	results, err := client.Search(ctx, "xyzabc123nonexistent9999", 1)
+	results, err := client.Search(ctx, "xyzabc123nonexistent9999", 1, nil)
 
 	// Assertions
 	assert.NoError(t, err, "Should not return error for no results")
@@ -154,14 +154,14 @@ func TestSearchIntegration_Pagination(t *testing.T) {
 
 	// Search for "Star Wars" which should have many results
 	ctx := context.Background()
-	page1, err := client.Search(ctx, "Star Wars", 1)
+	page1, err := client.Search(ctx, "Star Wars", 1, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, page1)
 	assert.Equal(t, 1, page1.Page)
 	assert.Greater(t, len(page1.Results), 0)
 
 	// Get page 2
-	page2, err := client.Search(ctx, "Star Wars", 2)
+	page2, err := client.Search(ctx, "Star Wars", 2, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, page2)
 	assert.Equal(t, 2, page2.Page)

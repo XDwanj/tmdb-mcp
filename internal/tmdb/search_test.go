@@ -48,7 +48,7 @@ func TestClient_Search_ValidQuery(t *testing.T) {
 
 	// Call Search
 	ctx := context.Background()
-	result, err := client.Search(ctx, "Inception", 1)
+	result, err := client.Search(ctx, "Inception", 1, nil)
 
 	// Assertions
 	assert.NoError(t, err)
@@ -72,7 +72,7 @@ func TestClient_Search_EmptyQuery(t *testing.T) {
 	client := NewClient(cfg, logger)
 
 	ctx := context.Background()
-	result, err := client.Search(ctx, "", 1)
+	result, err := client.Search(ctx, "", 1, nil)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
@@ -92,7 +92,7 @@ func TestClient_Search_QueryTooLong(t *testing.T) {
 	// Create a query longer than 500 characters
 	longQuery := string(make([]byte, 501))
 	ctx := context.Background()
-	result, err := client.Search(ctx, longQuery, 1)
+	result, err := client.Search(ctx, longQuery, 1, nil)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
@@ -115,7 +115,7 @@ func TestClient_Search_404NotFound(t *testing.T) {
 	client := createTestClient(t, server.URL, "test-api-key")
 
 	ctx := context.Background()
-	result, err := client.Search(ctx, "xyzabc123nonexistent", 1)
+	result, err := client.Search(ctx, "xyzabc123nonexistent", 1, nil)
 
 	// 404 should return empty results, not error
 	assert.NoError(t, err)
@@ -139,7 +139,7 @@ func TestClient_Search_401Unauthorized(t *testing.T) {
 	client := createTestClient(t, server.URL, "invalid-key")
 
 	ctx := context.Background()
-	result, err := client.Search(ctx, "Inception", 1)
+	result, err := client.Search(ctx, "Inception", 1, nil)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
@@ -167,7 +167,7 @@ func TestClient_Search_DefaultPage(t *testing.T) {
 	client := createTestClient(t, server.URL, "test-api-key")
 
 	ctx := context.Background()
-	result, err := client.Search(ctx, "test", 0)
+	result, err := client.Search(ctx, "test", 0, nil)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -213,7 +213,7 @@ func TestClient_Search_MultipleMediaTypes(t *testing.T) {
 	client := createTestClient(t, server.URL, "test-api-key")
 
 	ctx := context.Background()
-	result, err := client.Search(ctx, "test", 1)
+	result, err := client.Search(ctx, "test", 1, nil)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)

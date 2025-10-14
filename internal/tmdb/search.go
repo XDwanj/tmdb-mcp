@@ -14,7 +14,7 @@ const (
 )
 
 // Search searches for movies, TV shows, and people using a query string
-func (c *Client) Search(ctx context.Context, query string, page int) (*SearchResponse, error) {
+func (c *Client) Search(ctx context.Context, query string, page int, language *string) (*SearchResponse, error) {
 	// 验证 query 参数
 	if query == "" {
 		return nil, errors.New("query parameter is required")
@@ -43,12 +43,18 @@ func (c *Client) Search(ctx context.Context, query string, page int) (*SearchRes
 
 	// 调用 TMDB API /search/multi 端点
 	var searchResp SearchResponse
-	resp, err := c.httpClient.R().
+	req := c.httpClient.R().
 		SetContext(ctx).
 		SetQueryParam("query", query).
 		SetQueryParam("page", fmt.Sprintf("%d", page)).
-		SetResult(&searchResp).
-		Get("/search/multi")
+		SetResult(&searchResp)
+
+	// 如果指定了 language 参数，添加到请求中（会覆盖 OnBeforeRequest 中的默认值）
+	if language != nil && *language != "" {
+		req.SetQueryParam("language", *language)
+	}
+
+	resp, err := req.Get("/search/multi")
 
 	if err != nil {
 		c.logger.Error("Search failed", zap.Error(err), zap.String("query", query))

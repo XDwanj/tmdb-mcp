@@ -55,7 +55,7 @@ func TestClient_GetMovieDetails_Success(t *testing.T) {
 
 	// Call GetMovieDetails
 	ctx := context.Background()
-	result, err := client.GetMovieDetails(ctx, 27205)
+	result, err := client.GetMovieDetails(ctx, 27205, nil)
 
 	// Assertions
 	assert.NoError(t, err)
@@ -118,7 +118,7 @@ func TestClient_GetTVDetails_Success(t *testing.T) {
 
 	// Call GetTVDetails
 	ctx := context.Background()
-	result, err := client.GetTVDetails(ctx, 1399)
+	result, err := client.GetTVDetails(ctx, 1399, nil)
 
 	// Assertions
 	assert.NoError(t, err)
@@ -169,7 +169,7 @@ func TestClient_GetPersonDetails_Success(t *testing.T) {
 
 	// Call GetPersonDetails
 	ctx := context.Background()
-	result, err := client.GetPersonDetails(ctx, 525)
+	result, err := client.GetPersonDetails(ctx, 525, nil)
 
 	// Assertions
 	assert.NoError(t, err)
@@ -198,7 +198,7 @@ func TestClient_GetMovieDetails_404NotFound(t *testing.T) {
 	client := createTestClient(t, server.URL, "test-api-key")
 
 	ctx := context.Background()
-	result, err := client.GetMovieDetails(ctx, 9999999)
+	result, err := client.GetMovieDetails(ctx, 9999999, nil)
 
 	// 404 should return nil, nil (not an error)
 	assert.NoError(t, err)
@@ -220,7 +220,7 @@ func TestClient_GetTVDetails_404NotFound(t *testing.T) {
 	client := createTestClient(t, server.URL, "test-api-key")
 
 	ctx := context.Background()
-	result, err := client.GetTVDetails(ctx, 9999999)
+	result, err := client.GetTVDetails(ctx, 9999999, nil)
 
 	// 404 should return nil, nil (not an error)
 	assert.NoError(t, err)
@@ -242,7 +242,7 @@ func TestClient_GetPersonDetails_404NotFound(t *testing.T) {
 	client := createTestClient(t, server.URL, "test-api-key")
 
 	ctx := context.Background()
-	result, err := client.GetPersonDetails(ctx, 9999999)
+	result, err := client.GetPersonDetails(ctx, 9999999, nil)
 
 	// 404 should return nil, nil (not an error)
 	assert.NoError(t, err)
@@ -264,7 +264,7 @@ func TestClient_GetMovieDetails_401Unauthorized(t *testing.T) {
 	client := createTestClient(t, server.URL, "invalid-key")
 
 	ctx := context.Background()
-	result, err := client.GetMovieDetails(ctx, 27205)
+	result, err := client.GetMovieDetails(ctx, 27205, nil)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
@@ -278,13 +278,13 @@ func TestClient_GetMovieDetails_InvalidID(t *testing.T) {
 	ctx := context.Background()
 
 	// Test with ID = 0
-	result, err := client.GetMovieDetails(ctx, 0)
+	result, err := client.GetMovieDetails(ctx, 0, nil)
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "invalid movie ID")
 
 	// Test with negative ID
-	result, err = client.GetMovieDetails(ctx, -1)
+	result, err = client.GetMovieDetails(ctx, -1, nil)
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "invalid movie ID")
@@ -297,13 +297,13 @@ func TestClient_GetTVDetails_InvalidID(t *testing.T) {
 	ctx := context.Background()
 
 	// Test with ID = 0
-	result, err := client.GetTVDetails(ctx, 0)
+	result, err := client.GetTVDetails(ctx, 0, nil)
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "invalid TV ID")
 
 	// Test with negative ID
-	result, err = client.GetTVDetails(ctx, -1)
+	result, err = client.GetTVDetails(ctx, -1, nil)
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "invalid TV ID")
@@ -316,13 +316,13 @@ func TestClient_GetPersonDetails_InvalidID(t *testing.T) {
 	ctx := context.Background()
 
 	// Test with ID = 0
-	result, err := client.GetPersonDetails(ctx, 0)
+	result, err := client.GetPersonDetails(ctx, 0, nil)
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "invalid person ID")
 
 	// Test with negative ID
-	result, err = client.GetPersonDetails(ctx, -1)
+	result, err = client.GetPersonDetails(ctx, -1, nil)
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "invalid person ID")

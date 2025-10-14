@@ -8,7 +8,7 @@ import (
 )
 
 // GetMovieDetails gets detailed information about a movie using its TMDB ID
-func (c *Client) GetMovieDetails(ctx context.Context, id int) (*MovieDetails, error) {
+func (c *Client) GetMovieDetails(ctx context.Context, id int, language *string) (*MovieDetails, error) {
 	// 验证参数
 	if id <= 0 {
 		return nil, fmt.Errorf("invalid movie ID: %d", id)
@@ -26,11 +26,17 @@ func (c *Client) GetMovieDetails(ctx context.Context, id int) (*MovieDetails, er
 
 	// 调用 TMDB API /movie/{id} 端点
 	var details MovieDetails
-	resp, err := c.httpClient.R().
+	req := c.httpClient.R().
 		SetContext(ctx).
 		SetQueryParam("append_to_response", "credits,videos").
-		SetResult(&details).
-		Get(fmt.Sprintf("/movie/%d", id))
+		SetResult(&details)
+
+	// 如果指定了 language 参数，添加到请求中（会覆盖 OnBeforeRequest 中的默认值）
+	if language != nil && *language != "" {
+		req.SetQueryParam("language", *language)
+	}
+
+	resp, err := req.Get(fmt.Sprintf("/movie/%d", id))
 
 	if err != nil {
 		c.logger.Error("Get movie details failed", zap.Error(err), zap.Int("id", id))
@@ -60,7 +66,7 @@ func (c *Client) GetMovieDetails(ctx context.Context, id int) (*MovieDetails, er
 }
 
 // GetTVDetails gets detailed information about a TV show using its TMDB ID
-func (c *Client) GetTVDetails(ctx context.Context, id int) (*TVDetails, error) {
+func (c *Client) GetTVDetails(ctx context.Context, id int, language *string) (*TVDetails, error) {
 	// 验证参数
 	if id <= 0 {
 		return nil, fmt.Errorf("invalid TV ID: %d", id)
@@ -78,11 +84,17 @@ func (c *Client) GetTVDetails(ctx context.Context, id int) (*TVDetails, error) {
 
 	// 调用 TMDB API /tv/{id} 端点
 	var details TVDetails
-	resp, err := c.httpClient.R().
+	req := c.httpClient.R().
 		SetContext(ctx).
 		SetQueryParam("append_to_response", "credits,videos").
-		SetResult(&details).
-		Get(fmt.Sprintf("/tv/%d", id))
+		SetResult(&details)
+
+	// 如果指定了 language 参数，添加到请求中（会覆盖 OnBeforeRequest 中的默认值）
+	if language != nil && *language != "" {
+		req.SetQueryParam("language", *language)
+	}
+
+	resp, err := req.Get(fmt.Sprintf("/tv/%d", id))
 
 	if err != nil {
 		c.logger.Error("Get TV details failed", zap.Error(err), zap.Int("id", id))
@@ -112,7 +124,7 @@ func (c *Client) GetTVDetails(ctx context.Context, id int) (*TVDetails, error) {
 }
 
 // GetPersonDetails gets detailed information about a person using their TMDB ID
-func (c *Client) GetPersonDetails(ctx context.Context, id int) (*PersonDetails, error) {
+func (c *Client) GetPersonDetails(ctx context.Context, id int, language *string) (*PersonDetails, error) {
 	// 验证参数
 	if id <= 0 {
 		return nil, fmt.Errorf("invalid person ID: %d", id)
@@ -130,11 +142,17 @@ func (c *Client) GetPersonDetails(ctx context.Context, id int) (*PersonDetails, 
 
 	// 调用 TMDB API /person/{id} 端点
 	var details PersonDetails
-	resp, err := c.httpClient.R().
+	req := c.httpClient.R().
 		SetContext(ctx).
 		SetQueryParam("append_to_response", "combined_credits").
-		SetResult(&details).
-		Get(fmt.Sprintf("/person/%d", id))
+		SetResult(&details)
+
+	// 如果指定了 language 参数，添加到请求中（会覆盖 OnBeforeRequest 中的默认值）
+	if language != nil && *language != "" {
+		req.SetQueryParam("language", *language)
+	}
+
+	resp, err := req.Get(fmt.Sprintf("/person/%d", id))
 
 	if err != nil {
 		c.logger.Error("Get person details failed", zap.Error(err), zap.Int("id", id))

@@ -129,3 +129,22 @@ type PersonDetails struct {
 	KnownForDepartment string          `json:"known_for_department"`
 	CombinedCredits    CombinedCredits `json:"combined_credits"` // 通过 append_to_response 获取
 }
+
+// DiscoverMovieResult represents a single result from TMDB discover movies
+type DiscoverMovieResult struct {
+	ID          int     `json:"id"`
+	Title       string  `json:"title"`
+	ReleaseDate string  `json:"release_date"`
+	VoteAverage float64 `json:"vote_average"`
+	Overview    string  `json:"overview"`
+	GenreIDs    []int   `json:"genre_ids"`
+	Popularity  float64 `json:"popularity"`
+}
+
+// DiscoverMoviesResponse represents the response from TMDB discover movies API
+type DiscoverMoviesResponse struct {
+	Page         int                   `json:"page"`
+	Results      []DiscoverMovieResult `json:"results"`
+	TotalPages   int                   `json:"total_pages"`
+	TotalResults int                   `json:"total_results"`
+}

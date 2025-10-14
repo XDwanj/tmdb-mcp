@@ -48,7 +48,7 @@ func (t *SearchTool) Handler() func(context.Context, *mcp.CallToolRequest, Searc
 		)
 
 		// Call TMDB Client (validation is done in the client layer)
-		results, err := t.tmdbClient.Search(ctx, params.Query, params.Page)
+		results, err := t.tmdbClient.Search(ctx, params.Query, params.Page, params.Language)
 		if err != nil {
 			t.logger.Error("Search failed",
 				zap.Error(err),

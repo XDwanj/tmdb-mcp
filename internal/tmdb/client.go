@@ -41,9 +41,11 @@ func NewClient(cfg config.TMDBConfig, logger *zap.Logger) *Client {
 		SetTimeout(defaultTimeout).
 		SetHeader("User-Agent", userAgent).
 		OnBeforeRequest(func(c *resty.Client, req *resty.Request) error {
-			// 自动添加 API Key 和 language 查询参数
+			// 自动添加 API Key
 			req.SetQueryParam("api_key", cfg.APIKey)
-			if cfg.Language != "" {
+
+			// language 参数仅在请求中未显式设置时使用配置默认值
+			if req.QueryParam.Get("language") == "" && cfg.Language != "" {
 				req.SetQueryParam("language", cfg.Language)
 			}
 			return nil

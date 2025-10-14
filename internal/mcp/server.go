@@ -43,6 +43,13 @@ func NewServer(tmdbClient *tmdb.Client, logger *zap.Logger) *Server {
 		Description: getDetailsTool.Description(),
 	}, getDetailsTool.Handler())
 
+	// Create and register discover_movies tool
+	discoverMoviesTool := tools.NewDiscoverMoviesTool(tmdbClient, logger)
+	mcp.AddTool(mcpServer, &mcp.Tool{
+		Name:        discoverMoviesTool.Name(),
+		Description: discoverMoviesTool.Description(),
+	}, discoverMoviesTool.Handler())
+
 	return &Server{
 		mcpServer:  mcpServer,
 		tmdbClient: tmdbClient,

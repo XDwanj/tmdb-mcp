@@ -56,7 +56,7 @@ func (t *GetDetailsTool) Handler() func(context.Context, *mcp.CallToolRequest, G
 		// 根据 media_type 调用相应的 TMDB Client 方法
 		switch params.MediaType {
 		case "movie":
-			movieDetails, err := t.tmdbClient.GetMovieDetails(ctx, params.ID)
+			movieDetails, err := t.tmdbClient.GetMovieDetails(ctx, params.ID, params.Language)
 			if err != nil {
 				t.logger.Error("Get details failed",
 					zap.Error(err),
@@ -80,7 +80,7 @@ func (t *GetDetailsTool) Handler() func(context.Context, *mcp.CallToolRequest, G
 			return &mcp.CallToolResult{}, movieDetails, nil
 
 		case "tv":
-			tvDetails, err := t.tmdbClient.GetTVDetails(ctx, params.ID)
+			tvDetails, err := t.tmdbClient.GetTVDetails(ctx, params.ID, params.Language)
 			if err != nil {
 				t.logger.Error("Get details failed",
 					zap.Error(err),
@@ -104,7 +104,7 @@ func (t *GetDetailsTool) Handler() func(context.Context, *mcp.CallToolRequest, G
 			return &mcp.CallToolResult{}, tvDetails, nil
 
 		case "person":
-			personDetails, err := t.tmdbClient.GetPersonDetails(ctx, params.ID)
+			personDetails, err := t.tmdbClient.GetPersonDetails(ctx, params.ID, params.Language)
 			if err != nil {
 				t.logger.Error("Get details failed",
 					zap.Error(err),
