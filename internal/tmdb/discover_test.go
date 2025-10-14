@@ -275,3 +275,275 @@ func TestClient_DiscoverMovies_EmptyResults(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Equal(t, 0, len(result.Results))
 }
+
+// TestClient_DiscoverTV_ValidParams tests discover TV shows with valid parameters
+func TestClient_DiscoverTV_ValidParams(t *testing.T) {
+	// Mock TMDB API server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/discover/tv", r.URL.Path)
+		assert.Equal(t, "80", r.URL.Query().Get("with_genres"))
+		assert.Equal(t, "2020", r.URL.Query().Get("first_air_date_year"))
+		assert.Equal(t, "8.0", r.URL.Query().Get("vote_average.gte"))
+		assert.Equal(t, "Returning Series", r.URL.Query().Get("with_status"))
+		assert.Equal(t, "popularity.desc", r.URL.Query().Get("sort_by"))
+		assert.Equal(t, "1", r.URL.Query().Get("page"))
+
+		// Return mock response
+		response := DiscoverTVResponse{
+			Page: 1,
+			Results: []DiscoverTVResult{
+				{
+					ID:            1396,
+					Name:          "Breaking Bad",
+					FirstAirDate:  "2008-01-20",
+					VoteAverage:   8.9,
+					Overview:      "A high school chemistry teacher...",
+					GenreIDs:      []int{80, 18},
+					OriginCountry: []string{"US"},
+					Popularity:    275.449,
+				},
+			},
+			TotalPages:   1,
+			TotalResults: 1,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+
+	// Create client with mock server
+	client := createTestClient(t, server.URL, "test-api-key")
+
+	// Call DiscoverTV
+	ctx := context.Background()
+	params := DiscoverTVParams{
+		WithGenres:       "80",
+		FirstAirDateYear: 2020,
+		VoteAverageGte:   8.0,
+		WithStatus:       "Returning Series",
+		SortBy:           "popularity.desc",
+		Page:             1,
+	}
+	result, err := client.DiscoverTV(ctx, params)
+
+	// Assertions
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, 1, result.Page)
+	assert.Equal(t, 1, len(result.Results))
+	assert.Equal(t, 1396, result.Results[0].ID)
+	assert.Equal(t, "Breaking Bad", result.Results[0].Name)
+	assert.Equal(t, 8.9, result.Results[0].VoteAverage)
+	assert.Equal(t, []string{"US"}, result.Results[0].OriginCountry)
+}
+
+// TestClient_DiscoverTV_DefaultValues tests discover TV shows with default values
+func TestClient_DiscoverTV_DefaultValues(t *testing.T) {
+	// Mock TMDB API server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify default sort_by is set
+		assert.Equal(t, "popularity.desc", r.URL.Query().Get("sort_by"))
+		// Verify default page is set
+		assert.Equal(t, "1", r.URL.Query().Get("page"))
+
+		response := DiscoverTVResponse{
+			Page:         1,
+			Results:      []DiscoverTVResult{},
+			TotalPages:   0,
+			TotalResults: 0,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+
+	client := createTestClient(t, server.URL, "test-api-key")
+
+	ctx := context.Background()
+	// Call with empty parameters
+	params := DiscoverTVParams{}
+	result, err := client.DiscoverTV(ctx, params)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, 1, result.Page)
+}
+
+// TestClient_DiscoverTV_VoteAverageGteInvalid tests with invalid vote_average.gte
+func TestClient_DiscoverTV_VoteAverageGteInvalid(t *testing.T) {
+	client := createTestClient(t, "http://dummy.url", "test-api-key")
+
+	ctx := context.Background()
+
+	// Test vote_average.gte > 10
+	params := DiscoverTVParams{
+		VoteAverageGte: 11.0,
+	}
+	result, err := client.DiscoverTV(ctx, params)
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "vote_average.gte must be between 0 and 10")
+
+	// Test vote_average.gte < 0
+	params = DiscoverTVParams{
+		VoteAverageGte: -1.0,
+	}
+	result, err = client.DiscoverTV(ctx, params)
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "vote_average.gte must be between 0 and 10")
+}
+
+// TestClient_DiscoverTV_VoteAverageLteInvalid tests with invalid vote_average.lte
+func TestClient_DiscoverTV_VoteAverageLteInvalid(t *testing.T) {
+	client := createTestClient(t, "http://dummy.url", "test-api-key")
+
+	ctx := context.Background()
+
+	// Test vote_average.lte > 10
+	params := DiscoverTVParams{
+		VoteAverageLte: 11.0,
+	}
+	result, err := client.DiscoverTV(ctx, params)
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "vote_average.lte must be between 0 and 10")
+
+	// Test vote_average.lte < 0
+	params = DiscoverTVParams{
+		VoteAverageLte: -1.0,
+	}
+	result, err = client.DiscoverTV(ctx, params)
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "vote_average.lte must be between 0 and 10")
+}
+
+// TestClient_DiscoverTV_404NotFound tests discover TV shows with no results (404)
+func TestClient_DiscoverTV_404NotFound(t *testing.T) {
+	// Mock TMDB API server returning 404
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]any{
+			"status_code":    34,
+			"status_message": "The resource you requested could not be found.",
+		})
+	}))
+	defer server.Close()
+
+	client := createTestClient(t, server.URL, "test-api-key")
+
+	ctx := context.Background()
+	params := DiscoverTVParams{
+		WithGenres: "999999", // Non-existent genre
+	}
+	result, err := client.DiscoverTV(ctx, params)
+
+	// 404 should return empty results, not error
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, 0, len(result.Results))
+	assert.Equal(t, 0, result.TotalResults)
+}
+
+// TestClient_DiscoverTV_401Unauthorized tests discover TV shows with invalid API key
+func TestClient_DiscoverTV_401Unauthorized(t *testing.T) {
+	// Mock TMDB API server returning 401
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]any{
+			"status_code":    7,
+			"status_message": "Invalid API key: You must be granted a valid key.",
+		})
+	}))
+	defer server.Close()
+
+	client := createTestClient(t, server.URL, "invalid-key")
+
+	ctx := context.Background()
+	params := DiscoverTVParams{}
+	result, err := client.DiscoverTV(ctx, params)
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "Invalid or missing TMDB API Key")
+}
+
+// TestClient_DiscoverTV_ParameterMapping tests that parameters are correctly mapped to query params
+func TestClient_DiscoverTV_ParameterMapping(t *testing.T) {
+	// Mock TMDB API server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify all parameters are correctly mapped
+		assert.Equal(t, "/discover/tv", r.URL.Path)
+		assert.Equal(t, "80,18", r.URL.Query().Get("with_genres"))
+		assert.Equal(t, "2023", r.URL.Query().Get("first_air_date_year"))
+		assert.Equal(t, "7.5", r.URL.Query().Get("vote_average.gte"))
+		assert.Equal(t, "9.5", r.URL.Query().Get("vote_average.lte"))
+		assert.Equal(t, "en", r.URL.Query().Get("with_original_language"))
+		assert.Equal(t, "Returning Series", r.URL.Query().Get("with_status"))
+		assert.Equal(t, "vote_average.desc", r.URL.Query().Get("sort_by"))
+		assert.Equal(t, "2", r.URL.Query().Get("page"))
+
+		response := DiscoverTVResponse{
+			Page:         2,
+			Results:      []DiscoverTVResult{},
+			TotalPages:   5,
+			TotalResults: 100,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+
+	client := createTestClient(t, server.URL, "test-api-key")
+
+	ctx := context.Background()
+	params := DiscoverTVParams{
+		WithGenres:           "80,18",
+		FirstAirDateYear:     2023,
+		VoteAverageGte:       7.5,
+		VoteAverageLte:       9.5,
+		WithOriginalLanguage: "en",
+		WithStatus:           "Returning Series",
+		SortBy:               "vote_average.desc",
+		Page:                 2,
+	}
+	result, err := client.DiscoverTV(ctx, params)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, 2, result.Page)
+}
+
+// TestClient_DiscoverTV_EmptyResults tests discover TV shows with valid params but no results
+func TestClient_DiscoverTV_EmptyResults(t *testing.T) {
+	// Mock TMDB API server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		response := DiscoverTVResponse{
+			Page:         1,
+			Results:      []DiscoverTVResult{},
+			TotalPages:   0,
+			TotalResults: 0,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+
+	client := createTestClient(t, server.URL, "test-api-key")
+
+	ctx := context.Background()
+	params := DiscoverTVParams{
+		WithGenres:     "10765",
+		VoteAverageGte: 9.9, // Very high rating
+	}
+	result, err := client.DiscoverTV(ctx, params)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, 0, len(result.Results))
+}

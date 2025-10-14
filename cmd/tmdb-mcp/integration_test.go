@@ -1043,9 +1043,9 @@ func TestLanguageParameterOverride(t *testing.T) {
 	env := setupTestEnvironment(t)
 
 	tests := []struct {
-		name       string
-		toolName   string
-		baseArgs   map[string]any
+		name         string
+		toolName     string
+		baseArgs     map[string]any
 		testWithLang bool
 	}{
 		{
@@ -1115,6 +1115,269 @@ func TestLanguageParameterOverride(t *testing.T) {
 					assert.False(t, result.IsError, "Should succeed with language override")
 					t.Logf("✓ Tool succeeded with language=zh override")
 				})
+			}
+		})
+	}
+}
+
+// TestDiscoverTVTool_Integration tests the discover_tv tool (AC: 10)
+func TestDiscoverTVTool_Integration(t *testing.T) {
+	env := setupTestEnvironment(t)
+
+	tests := []struct {
+		name           string
+		withGenres     string
+		firstAirYear   int
+		voteAverageGte float64
+		withStatus     string
+		sortBy         string
+		minResults     int
+		validateResult func(*testing.T, *tmdb.DiscoverTVResponse)
+	}{
+		{
+			name:           "crime dramas with rating >= 8.0",
+			withGenres:     "80", // Crime
+			voteAverageGte: 8.0,
+			sortBy:         "popularity.desc",
+			minResults:     1,
+			validateResult: func(t *testing.T, resp *tmdb.DiscoverTVResponse) {
+				if len(resp.Results) > 0 {
+					firstResult := resp.Results[0]
+					assert.Contains(t, firstResult.GenreIDs, 80, "Result should be crime (genre 80)")
+					assert.GreaterOrEqual(t, firstResult.VoteAverage, 8.0, "Result should have rating >= 8.0")
+					t.Logf("✓ Found crime drama: %s (Rating: %.1f)", firstResult.Name, firstResult.VoteAverage)
+				}
+			},
+		},
+		{
+			name:       "returning sci-fi series",
+			withGenres: "10765", // Sci-Fi & Fantasy
+			withStatus: "Returning Series",
+			sortBy:     "vote_average.desc",
+			minResults: 1,
+			validateResult: func(t *testing.T, resp *tmdb.DiscoverTVResponse) {
+				if len(resp.Results) > 0 {
+					firstResult := resp.Results[0]
+					assert.Contains(t, firstResult.GenreIDs, 10765, "Result should be sci-fi (genre 10765)")
+					// Returning Series test - note: status filtering is done by TMDB API
+					t.Logf("✓ Found returning sci-fi series: %s (Rating: %.1f)", firstResult.Name, firstResult.VoteAverage)
+				}
+			},
+		},
+		{
+			name:       "default behavior - popular TV shows",
+			minResults: 1,
+			validateResult: func(t *testing.T, resp *tmdb.DiscoverTVResponse) {
+				// Default should return popular TV shows
+				assert.NotEmpty(t, resp.Results, "Should return popular TV shows by default")
+				if len(resp.Results) > 0 {
+					firstResult := resp.Results[0]
+					assert.Greater(t, firstResult.Popularity, 0.0, "Result should have popularity score")
+					t.Logf("✓ Found popular TV show: %s (Popularity: %.1f)", firstResult.Name, firstResult.Popularity)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mcs := setupMCPClientServer(t, env)
+			defer mcs.cleanup()
+
+			ctx := context.Background()
+
+			// Prepare arguments
+			args := map[string]any{}
+			if tt.withGenres != "" {
+				args["with_genres"] = tt.withGenres
+			}
+			if tt.firstAirYear > 0 {
+				args["first_air_date_year"] = tt.firstAirYear
+			}
+			if tt.voteAverageGte > 0 {
+				args["vote_average.gte"] = tt.voteAverageGte
+			}
+			if tt.withStatus != "" {
+				args["with_status"] = tt.withStatus
+			}
+			if tt.sortBy != "" {
+				args["sort_by"] = tt.sortBy
+			}
+
+			// Call discover_tv tool
+			result, err := mcs.clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
+				Name:      "discover_tv",
+				Arguments: args,
+			})
+
+			// Verify no error
+			require.NoError(t, err, "CallTool should not return error")
+			assert.NotNil(t, result, "Result should not be nil")
+			assert.False(t, result.IsError, "Result should not be an error")
+
+			// Verify result structure
+			assert.Len(t, result.Content, 1, "Result should have exactly 1 content item")
+
+			// Extract text content
+			textContent, ok := result.Content[0].(*mcpsdk.TextContent)
+			require.True(t, ok, "Content should be TextContent type")
+
+			// Parse JSON response
+			var response tmdb.DiscoverTVResponse
+			err = json.Unmarshal([]byte(textContent.Text), &response)
+			require.NoError(t, err, "Failed to unmarshal response JSON")
+
+			// Verify minimum result count
+			assert.GreaterOrEqual(t, len(response.Results), tt.minResults,
+				"Should have at least %d result(s)", tt.minResults)
+
+			// Run custom validation
+			if tt.validateResult != nil {
+				tt.validateResult(t, &response)
+			}
+		})
+	}
+}
+
+// TestDiscoverTVTool_DataIntegrity tests data structure integrity for discover_tv (AC: 10)
+func TestDiscoverTVTool_DataIntegrity(t *testing.T) {
+	env := setupTestEnvironment(t)
+	mcs := setupMCPClientServer(t, env)
+	defer mcs.cleanup()
+
+	ctx := context.Background()
+
+	// Test with specific parameters
+	result, err := mcs.clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
+		Name: "discover_tv",
+		Arguments: map[string]any{
+			"with_genres":      "80",
+			"vote_average.gte": 7.0,
+			"sort_by":          "popularity.desc",
+			"page":             1,
+		},
+	})
+
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	textContent, ok := result.Content[0].(*mcpsdk.TextContent)
+	require.True(t, ok)
+
+	var response tmdb.DiscoverTVResponse
+	err = json.Unmarshal([]byte(textContent.Text), &response)
+	require.NoError(t, err)
+
+	// Verify response structure
+	assert.Greater(t, response.Page, 0, "Page should be > 0")
+	assert.NotEmpty(t, response.Results, "Results should not be empty")
+
+	// Verify first result has all required fields
+	if len(response.Results) > 0 {
+		firstResult := response.Results[0]
+		assert.NotZero(t, firstResult.ID, "Result should have ID")
+		assert.NotEmpty(t, firstResult.Name, "Result should have name")
+		assert.NotEmpty(t, firstResult.FirstAirDate, "Result should have first_air_date")
+		assert.GreaterOrEqual(t, firstResult.VoteAverage, 0.0, "Result should have vote_average")
+		assert.NotEmpty(t, firstResult.Overview, "Result should have overview")
+		assert.NotEmpty(t, firstResult.GenreIDs, "Result should have genre_ids")
+		assert.NotEmpty(t, firstResult.OriginCountry, "Result should have origin_country")
+		assert.Greater(t, firstResult.Popularity, 0.0, "Result should have popularity")
+
+		t.Logf("✓ Data integrity verified: ID=%d, Name=%s, Rating=%.1f, Genres=%v, Countries=%v",
+			firstResult.ID,
+			firstResult.Name,
+			firstResult.VoteAverage,
+			firstResult.GenreIDs,
+			firstResult.OriginCountry)
+	}
+}
+
+// TestDiscoverTVTool_ErrorScenarios tests error handling for discover_tv (AC: 10)
+func TestDiscoverTVTool_ErrorScenarios(t *testing.T) {
+	env := setupTestEnvironment(t)
+
+	tests := []struct {
+		name          string
+		arguments     map[string]any
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name: "vote_average.gte out of range (> 10)",
+			arguments: map[string]any{
+				"vote_average.gte": 11.0,
+			},
+			expectError:   true,
+			errorContains: "vote_average.gte must be between 0 and 10",
+		},
+		{
+			name: "vote_average.gte out of range (< 0)",
+			arguments: map[string]any{
+				"vote_average.gte": -1.0,
+			},
+			expectError:   true,
+			errorContains: "vote_average.gte must be between 0 and 10",
+		},
+		{
+			name: "vote_average.lte out of range",
+			arguments: map[string]any{
+				"vote_average.lte": 15.0,
+			},
+			expectError:   true,
+			errorContains: "vote_average.lte must be between 0 and 10",
+		},
+		{
+			name: "non-existent genre combination",
+			arguments: map[string]any{
+				"with_genres":      "999999",
+				"vote_average.gte": 9.9,
+			},
+			expectError: false, // Should return empty results, not error
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mcs := setupMCPClientServer(t, env)
+			defer mcs.cleanup()
+
+			ctx := context.Background()
+
+			// Call discover_tv tool
+			result, err := mcs.clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
+				Name:      "discover_tv",
+				Arguments: tt.arguments,
+			})
+
+			if tt.expectError {
+				// Should return error via IsError field
+				require.NoError(t, err, "MCP protocol should not fail")
+				require.NotNil(t, result, "Result should not be nil")
+				assert.True(t, result.IsError, "IsError should be true for %s", tt.name)
+
+				// Extract error message
+				if len(result.Content) > 0 {
+					textContent, ok := result.Content[0].(*mcpsdk.TextContent)
+					if ok {
+						assert.Contains(t, textContent.Text, tt.errorContains,
+							"Error message should contain '%s'", tt.errorContains)
+						t.Logf("✓ Got expected error: %s", textContent.Text)
+					}
+				}
+			} else {
+				// Should succeed (possibly with empty results)
+				require.NoError(t, err, "Should not return error for %s", tt.name)
+				assert.NotNil(t, result, "Result should not be nil")
+
+				textContent, ok := result.Content[0].(*mcpsdk.TextContent)
+				require.True(t, ok, "Content should be TextContent type")
+
+				var response tmdb.DiscoverTVResponse
+				err = json.Unmarshal([]byte(textContent.Text), &response)
+				require.NoError(t, err, "Failed to unmarshal response JSON")
+
+				t.Logf("✓ Query succeeded with %d results (empty is acceptable)", len(response.Results))
 			}
 		})
 	}

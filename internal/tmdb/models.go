@@ -148,3 +148,23 @@ type DiscoverMoviesResponse struct {
 	TotalPages   int                   `json:"total_pages"`
 	TotalResults int                   `json:"total_results"`
 }
+
+// DiscoverTVResult represents a single result from TMDB discover TV
+type DiscoverTVResult struct {
+	ID            int      `json:"id"`
+	Name          string   `json:"name"`
+	FirstAirDate  string   `json:"first_air_date"`
+	VoteAverage   float64  `json:"vote_average"`
+	Overview      string   `json:"overview"`
+	GenreIDs      []int    `json:"genre_ids"`
+	OriginCountry []string `json:"origin_country"`
+	Popularity    float64  `json:"popularity"`
+}
+
+// DiscoverTVResponse represents the response from TMDB discover TV API
+type DiscoverTVResponse struct {
+	Page         int                `json:"page"`
+	Results      []DiscoverTVResult `json:"results"`
+	TotalPages   int                `json:"total_pages"`
+	TotalResults int                `json:"total_results"`
+}

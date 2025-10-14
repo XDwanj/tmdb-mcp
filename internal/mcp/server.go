@@ -50,6 +50,13 @@ func NewServer(tmdbClient *tmdb.Client, logger *zap.Logger) *Server {
 		Description: discoverMoviesTool.Description(),
 	}, discoverMoviesTool.Handler())
 
+	// Create and register discover_tv tool
+	discoverTVTool := tools.NewDiscoverTVTool(tmdbClient, logger)
+	mcp.AddTool(mcpServer, &mcp.Tool{
+		Name:        discoverTVTool.Name(),
+		Description: discoverTVTool.Description(),
+	}, discoverTVTool.Handler())
+
 	return &Server{
 		mcpServer:  mcpServer,
 		tmdbClient: tmdbClient,
