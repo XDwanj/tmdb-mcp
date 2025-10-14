@@ -43,10 +43,15 @@
    - 人物详情：自动追加 `append_to_response=combined_credits`
    - 减少 API 调用次数，提升性能
 
-4. **语言偏好**:
-   - 从配置文件读取 `language` 参数（默认 `en-US`）
-   - 所有 API 请求自动添加 `language` 查询参数
-   - PRD 明确不实现自动语言检测
+4. **语言参数处理（两级优先级模型）**:
+   - **工具级参数（最高优先级）**: MCP工具调用时传入的`language`参数
+   - **配置默认值**: 从配置文件读取`language`参数（默认`en-US`）
+   - **实现机制**:
+     - `OnBeforeRequest`中间件仅在请求中未显式设置language时注入配置默认值
+     - 工具层将可选的`language`参数传递给TMDB Client方法
+     - Client方法在API调用时设置`language`查询参数，会自动覆盖中间件默认值
+   - **标准模式**: 所有MCP工具参数使用指针类型（`*string`）以区分"未传入"和"空字符串"
+   - PRD明确不实现自动语言检测
 
 5. **错误处理**:
    - **401 Unauthorized**: API Key 无效或过期，立即返回错误
