@@ -36,6 +36,13 @@ func NewServer(tmdbClient *tmdb.Client, logger *zap.Logger) *Server {
 		Description: searchTool.Description(),
 	}, searchTool.Handler())
 
+	// Create and register get_details tool
+	getDetailsTool := tools.NewGetDetailsTool(tmdbClient, logger)
+	mcp.AddTool(mcpServer, &mcp.Tool{
+		Name:        getDetailsTool.Name(),
+		Description: getDetailsTool.Description(),
+	}, getDetailsTool.Handler())
+
 	return &Server{
 		mcpServer:  mcpServer,
 		tmdbClient: tmdbClient,

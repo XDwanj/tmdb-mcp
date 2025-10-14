@@ -12,3 +12,9 @@ type SearchParams struct {
 type SearchResponse struct {
 	Results []tmdb.SearchResult `json:"results" jsonschema:"List of search results"`
 }
+
+// GetDetailsParams represents the parameters for the get_details tool
+type GetDetailsParams struct {
+	MediaType string `json:"media_type" jsonschema:"Media type (movie/tv/person)"` // 媒体类型（必需）
+	ID        int    `json:"id" jsonschema:"TMDB ID of the content"`               // TMDB ID（必需）
+}

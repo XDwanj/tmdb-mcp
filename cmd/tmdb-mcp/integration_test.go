@@ -529,3 +529,251 @@ func TestSearchTool_RateLimiting(t *testing.T) {
 	t.Logf("✓ %d requests completed in %v (expected range: %v - %v)", requestCount, duration, expectedMinDuration, expectedMaxDuration)
 	t.Logf("✓ No 429 errors occurred (rate limiter working correctly)")
 }
+
+// TestGetDetailsTool_Integration tests the get_details tool (AC: 9)
+func TestGetDetailsTool_Integration(t *testing.T) {
+	env := setupTestEnvironment(t)
+
+	tests := []struct {
+		name           string
+		mediaType      string
+		id             int
+		expectedFields map[string]bool // Fields that must exist in response
+	}{
+		{
+			name:      "movie details - Inception",
+			mediaType: "movie",
+			id:        27205,
+			expectedFields: map[string]bool{
+				"id":      true,
+				"title":   true,
+				"credits": true,
+				"videos":  true,
+			},
+		},
+		{
+			name:      "tv details - Game of Thrones",
+			mediaType: "tv",
+			id:        1399,
+			expectedFields: map[string]bool{
+				"id":      true,
+				"name":    true,
+				"credits": true,
+				"videos":  true,
+			},
+		},
+		{
+			name:      "person details - Christopher Nolan",
+			mediaType: "person",
+			id:        525,
+			expectedFields: map[string]bool{
+				"id":               true,
+				"name":             true,
+				"combined_credits": true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mcs := setupMCPClientServer(t, env)
+			defer mcs.cleanup()
+
+			ctx := context.Background()
+
+			// Call get_details tool
+			result, err := mcs.clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
+				Name: "get_details",
+				Arguments: map[string]any{
+					"media_type": tt.mediaType,
+					"id":         tt.id,
+				},
+			})
+
+			// Verify no error
+			require.NoError(t, err, "CallTool should not return error")
+			assert.NotNil(t, result, "Result should not be nil")
+			assert.False(t, result.IsError, "Result should not be an error")
+
+			// Verify result structure
+			assert.Len(t, result.Content, 1, "Result should have exactly 1 content item")
+
+			// Extract text content
+			textContent, ok := result.Content[0].(*mcpsdk.TextContent)
+			require.True(t, ok, "Content should be TextContent type")
+
+			// Parse JSON response
+			var response map[string]any
+			err = json.Unmarshal([]byte(textContent.Text), &response)
+			require.NoError(t, err, "Failed to unmarshal response JSON")
+
+			// Verify all expected fields exist
+			for field := range tt.expectedFields {
+				assert.Contains(t, response, field, "Response should contain field '%s'", field)
+			}
+
+			// Verify ID matches
+			idFloat, ok := response["id"].(float64)
+			require.True(t, ok, "ID should be a number")
+			assert.Equal(t, float64(tt.id), idFloat, "ID should match requested ID")
+
+			t.Logf("✓ Retrieved %s details (ID=%d), fields: %v", tt.mediaType, tt.id, getMapKeys(response))
+		})
+	}
+}
+
+// TestGetDetailsTool_ErrorScenarios tests error handling for get_details (AC: 9)
+func TestGetDetailsTool_ErrorScenarios(t *testing.T) {
+	env := setupTestEnvironment(t)
+
+	tests := []struct {
+		name          string
+		mediaType     string
+		id            int
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:          "invalid media type",
+			mediaType:     "invalid",
+			id:            123,
+			expectError:   true,
+			errorContains: "invalid media_type",
+		},
+		{
+			name:          "non-existent movie ID",
+			mediaType:     "movie",
+			id:            9999999,
+			expectError:   true,
+			errorContains: "not found",
+		},
+		{
+			name:          "non-existent tv ID",
+			mediaType:     "tv",
+			id:            9999999,
+			expectError:   true,
+			errorContains: "not found",
+		},
+		{
+			name:          "non-existent person ID",
+			mediaType:     "person",
+			id:            9999999,
+			expectError:   true,
+			errorContains: "not found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mcs := setupMCPClientServer(t, env)
+			defer mcs.cleanup()
+
+			ctx := context.Background()
+
+			// Call get_details tool
+			result, err := mcs.clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
+				Name: "get_details",
+				Arguments: map[string]any{
+					"media_type": tt.mediaType,
+					"id":         tt.id,
+				},
+			})
+
+			// Verify error
+			require.NoError(t, err, "MCP protocol should not fail")
+			require.NotNil(t, result, "Result should not be nil")
+			assert.True(t, result.IsError, "IsError should be true for %s", tt.name)
+
+			// Extract error message
+			if len(result.Content) > 0 {
+				textContent, ok := result.Content[0].(*mcpsdk.TextContent)
+				if ok {
+					assert.Contains(t, textContent.Text, tt.errorContains,
+						"Error message should contain '%s'", tt.errorContains)
+					t.Logf("✓ Got expected error: %s", textContent.Text)
+				}
+			}
+		})
+	}
+}
+
+// TestGetDetailsTool_DataIntegrity tests that returned data has complete structure (AC: 9)
+func TestGetDetailsTool_DataIntegrity(t *testing.T) {
+	env := setupTestEnvironment(t)
+	mcs := setupMCPClientServer(t, env)
+	defer mcs.cleanup()
+
+	ctx := context.Background()
+
+	// Test Movie Details - verify Credits and Videos are populated
+	t.Run("movie has credits and videos", func(t *testing.T) {
+		result, err := mcs.clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
+			Name: "get_details",
+			Arguments: map[string]any{
+				"media_type": "movie",
+				"id":         27205, // Inception
+			},
+		})
+
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+
+		textContent, ok := result.Content[0].(*mcpsdk.TextContent)
+		require.True(t, ok)
+
+		var movieDetails tmdb.MovieDetails
+		err = json.Unmarshal([]byte(textContent.Text), &movieDetails)
+		require.NoError(t, err)
+
+		// Verify Credits are populated
+		assert.NotEmpty(t, movieDetails.Credits.Cast, "Movie should have cast members")
+		assert.NotEmpty(t, movieDetails.Credits.Crew, "Movie should have crew members")
+
+		// Verify Videos are populated
+		assert.NotEmpty(t, movieDetails.Videos.Results, "Movie should have videos")
+
+		t.Logf("✓ Movie has %d cast, %d crew, %d videos",
+			len(movieDetails.Credits.Cast),
+			len(movieDetails.Credits.Crew),
+			len(movieDetails.Videos.Results))
+	})
+
+	// Test Person Details - verify CombinedCredits are populated
+	t.Run("person has combined credits", func(t *testing.T) {
+		result, err := mcs.clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
+			Name: "get_details",
+			Arguments: map[string]any{
+				"media_type": "person",
+				"id":         525, // Christopher Nolan
+			},
+		})
+
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+
+		textContent, ok := result.Content[0].(*mcpsdk.TextContent)
+		require.True(t, ok)
+
+		var personDetails tmdb.PersonDetails
+		err = json.Unmarshal([]byte(textContent.Text), &personDetails)
+		require.NoError(t, err)
+
+		// Verify CombinedCredits are populated
+		totalCredits := len(personDetails.CombinedCredits.Cast) + len(personDetails.CombinedCredits.Crew)
+		assert.Greater(t, totalCredits, 0, "Person should have combined credits")
+
+		t.Logf("✓ Person has %d cast credits, %d crew credits (total: %d)",
+			len(personDetails.CombinedCredits.Cast),
+			len(personDetails.CombinedCredits.Crew),
+			totalCredits)
+	})
+}
+
+// getMapKeys returns all keys from a map as a slice
+func getMapKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
