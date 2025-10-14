@@ -100,20 +100,83 @@
 7. 编写单元测试：Mock TMDB API 响应、验证查询参数、验证结果解析
 8. 编写集成测试：搜索 "Inception"、搜索 "Christopher Nolan"、搜索不存在内容
 
-### Story 1.7: End-to-End Testing with Claude
+### Story 1.7: Automated End-to-End Integration Testing
 
 **As a** developer,
-**I want** to perform end-to-end testing using Claude Code (or other MCP client),
-**so that** I can verify the search tool works correctly in a real-world scenario and the entire technical stack is functioning properly.
+**I want** to implement automated integration tests using MCP SDK's InMemoryTransports,
+**so that** I can continuously verify the search tool works correctly without manual intervention and ensure the entire MCP protocol stack is functioning properly.
 
 **Acceptance Criteria**:
 
-1. 配置 Claude Code 连接到 tmdb-mcp 服务（stdio 模式）
-2. 执行测试场景：搜索流行电影、搜索电视剧、搜索人物、混乱文件名提取、错误处理
-3. 记录测试结果和截图/日志到 `.ai/epic1-e2e-test-results.md`
-4. 验证性能：每次搜索响应时间 < 3 秒、日志无错误
-5. 验证速率限制：快速执行 10 次搜索，验证没有触发 429 错误
-6. 问题修复：记录并修复所有阻塞性问题
+1. **自动化集成测试框架**（必需）：
+   - 创建 `cmd/tmdb-mcp/integration_test.go` 使用 InMemoryTransports
+   - 使用 `mcp.NewInMemoryTransports()` 创建 client-server 通信对
+   - 在同一进程内模拟完整的 MCP 协议交互
+   - 无需启动外部进程或 Claude Code 客户端
+
+2. **测试用例覆盖**（必需）：
+   - ✅ 成功场景：搜索流行电影（"Inception"）、搜索电视剧（"Breaking Bad"）、搜索人物（"Christopher Nolan"）
+   - ✅ 边界场景：空查询、不存在的内容（返回空结果）、分页测试
+   - ✅ 错误场景：无效参数、TMDB API 错误模拟
+   - ✅ 结果验证：检查返回数据结构、字段完整性、数据类型正确性
+
+3. **性能验证**（必需）：
+   - 每次搜索调用的响应时间 < 3 秒
+   - 记录并验证 API 调用次数
+   - 使用 Go testing 的 benchmark 功能测试吞吐量
+
+4. **速率限制验证**（必需）：
+   - 快速执行 10 次搜索请求
+   - 验证没有触发 429 错误
+   - 验证 RateLimiter 正确工作（通过日志或计数器）
+
+5. **测试覆盖率**（必需）：
+   - 使用 `go test -cover` 检查覆盖率
+   - 目标：`internal/tools` 包覆盖率 ≥ 70%
+   - 目标：`internal/tmdb` 包覆盖率 ≥ 70%
+
+6. **CI/CD 集成**（必需）：
+   - 测试可以通过 `go test ./...` 运行
+   - 无需外部依赖（使用 Mock TMDB API 或环境变量控制）
+   - 测试结果输出清晰，失败时提供有用的错误信息
+
+7. **手动验证**（可选，作为补充）：
+   - 在 `.ai/epic1-e2e-test-results.md` 记录使用真实 Claude Code 的手动测试结果
+   - 验证用户体验和自然语言交互效果
+   - 截图和日志作为文档参考
+
+**实现参考**（基于官方 MCP SDK）：
+```go
+func TestSearchTool_Integration(t *testing.T) {
+    ctx := context.Background()
+
+    // 创建内存传输对
+    clientTransport, serverTransport := mcp.NewInMemoryTransports()
+
+    // 初始化 server
+    server := setupMCPServer(t) // 包含 search tool
+    serverSession, _ := server.Connect(ctx, serverTransport, nil)
+    defer serverSession.Close()
+
+    // 初始化 client
+    client := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil)
+    clientSession, _ := client.Connect(ctx, clientTransport, nil)
+    defer clientSession.Close()
+
+    // 测试搜索功能
+    start := time.Now()
+    result, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
+        Name: "search",
+        Arguments: map[string]any{"query": "Inception", "page": 1},
+    })
+    duration := time.Since(start)
+
+    // 验证结果
+    assert.NoError(t, err)
+    assert.Less(t, duration, 3*time.Second)
+    // ... 更多验证
+}
+```
 
 ---
 

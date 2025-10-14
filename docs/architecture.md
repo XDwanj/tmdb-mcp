@@ -1574,10 +1574,10 @@ client.apiKey = config.APIKey  // 逐字段赋值
 - **Integration Tests**: 覆盖所有 6 个 MCP 工具
 - **E2E Tests**: 手动测试 4 个核心使用场景
 
-**Test Pyramid**:
-- 70% Unit Tests（快速，隔离）
-- 25% Integration Tests（真实 API 或 Mock）
-- 5% E2E Tests（手动，真实 Claude Code 客户端）
+**Test Pyramid** (基于 MCP SDK InMemoryTransports):
+- 60% Unit Tests（快速，隔离，Mock 外部依赖）
+- 35% Integration Tests（InMemoryTransports，真实/Mock TMDB API）
+- 5% Manual E2E Tests（真实 Claude Code 客户端，用户体验验证）
 
 ### Test Types and Organization
 
@@ -1650,6 +1650,122 @@ func TestSearchIntegration(t *testing.T) {
     assert.NotEmpty(t, results)
 }
 ```
+
+#### Integration Tests - MCP Protocol Testing
+
+**Scope**: 测试完整的 MCP 协议栈（Client ↔ Server ↔ Tools ↔ TMDB API）
+
+**Framework**: `testing` (标准库) + MCP SDK 的 `InMemoryTransports`
+
+**Location**: `cmd/tmdb-mcp/integration_test.go`
+
+**Key Pattern**: 使用 InMemoryTransports 在同一进程内模拟 client-server 通信
+
+**Advantages**:
+- ✅ 完全自动化，无需外部进程
+- ✅ 快速执行（纯内存，无网络开销）
+- ✅ 易于集成到 CI/CD
+- ✅ 精确验证 MCP 协议消息格式
+- ✅ 可以 Mock TMDB API 进行隔离测试
+
+**Test Structure**:
+```go
+// 标准测试模式
+func TestSearchTool_Integration(t *testing.T) {
+    // 1. 创建传输对
+    ct, st := mcp.NewInMemoryTransports()
+
+    // 2. 启动 server
+    server := NewMCPServer(testConfig, testLogger)
+    ss, _ := server.Connect(context.Background(), st, nil)
+    defer ss.Close()
+
+    // 3. 连接 client
+    client := mcp.NewClient(&mcp.Implementation{Name: "test"}, nil)
+    cs, _ := client.Connect(context.Background(), ct, nil)
+    defer cs.Close()
+
+    // 4. 执行工具调用
+    result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+        Name: "search",
+        Arguments: map[string]any{"query": "Inception"},
+    })
+
+    // 5. 验证结果
+    assert.NoError(t, err)
+    assert.NotEmpty(t, result.Content)
+    // 验证返回数据结构、字段完整性等
+}
+```
+
+**Test Scenarios**:
+
+1. **单工具测试**（Epic 1, Story 1.7）:
+   - 搜索成功场景（流行电影、电视剧、人物）
+   - 边界场景（空查询、不存在内容、大页码）
+   - 错误场景（无效参数、TMDB API 错误）
+   - 性能验证（响应时间 < 3 秒）
+   - 速率限制验证（10 次快速请求）
+
+2. **多工具协作测试**（Epic 2-3）:
+   - `search` → `get_details` 链式调用
+   - `discover_movies` → `get_recommendations` 组合
+   - `get_trending` → `get_details` 场景
+
+3. **并发测试**:
+   - 使用 goroutines 并发调用多个工具
+   - 验证速率限制器在并发场景下正确工作
+   - 运行 `go test -race` 检测数据竞争
+
+4. **协议一致性测试**:
+   - 验证 `tools/list` 返回正确的工具列表
+   - 验证 `tools/call` 参数解析和验证
+   - 验证错误响应格式符合 MCP 规范
+
+**Mock Strategy**:
+- **真实 TMDB API**（需要有效 API Key）：用于验证真实集成
+- **Mock TMDB API**（httptest）：用于错误场景和速率限制测试
+- 通过环境变量 `TMDB_API_KEY` 控制是否使用真实 API
+
+**Example - Mock TMDB API**:
+```go
+func TestSearchTool_WithMockTMDB(t *testing.T) {
+    // 创建 Mock TMDB API server
+    mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(mockSearchResponse)
+    }))
+    defer mockServer.Close()
+
+    // 使用 Mock server 创建 TMDB client
+    config := testConfig
+    config.TMDB.BaseURL = mockServer.URL
+
+    // ... 运行测试
+}
+```
+
+**Performance Testing**:
+```go
+func BenchmarkSearchTool(b *testing.B) {
+    // Setup
+    ct, st := mcp.NewInMemoryTransports()
+    // ...
+
+    b.ResetTimer()
+    for i := 0; i < b.N; i++ {
+        cs.CallTool(ctx, &mcp.CallToolParams{
+            Name: "search",
+            Arguments: map[string]any{"query": "Inception"},
+        })
+    }
+}
+```
+
+**Coverage Requirements**:
+- `internal/tools` 包：≥ 70%
+- `internal/tmdb` 包：≥ 70%
+- `internal/mcp` 包：≥ 60%（MCP server 初始化逻辑）
 
 #### End-to-End Tests
 

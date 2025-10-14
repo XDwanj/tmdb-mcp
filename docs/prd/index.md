@@ -30,7 +30,7 @@
       - [Story 1.4: Rate Limiting Mechanism](./epic-details.md#story-14-rate-limiting-mechanism)
       - [Story 1.5: MCP Protocol Integration via stdio](./epic-details.md#story-15-mcp-protocol-integration-via-stdio)
       - [Story 1.6: Implement Search Tool](./epic-details.md#story-16-implement-search-tool)
-      - [Story 1.7: End-to-End Testing with Claude](./epic-details.md#story-17-end-to-end-testing-with-claude)
+      - [Story 1.7: Automated End-to-End Integration Testing](./epic-details.md#story-17-automated-end-to-end-integration-testing)
     - [Epic 2: Details & Discovery Tools](./epic-details.md#epic-2-details-discovery-tools)
       - [Story 2.1: Implement get_details Tool](./epic-details.md#story-21-implement-getdetails-tool)
       - [Story 2.2: Implement discover_movies Tool](./epic-details.md#story-22-implement-discovermovies-tool)

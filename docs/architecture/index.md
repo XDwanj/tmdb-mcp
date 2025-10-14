@@ -73,6 +73,7 @@
     - [Test Types and Organization](./test-strategy-and-standards.md#test-types-and-organization)
       - [Unit Tests](./test-strategy-and-standards.md#unit-tests)
       - [Integration Tests](./test-strategy-and-standards.md#integration-tests)
+      - [Integration Tests - MCP Protocol Testing](./test-strategy-and-standards.md#integration-tests-mcp-protocol-testing)
       - [End-to-End Tests](./test-strategy-and-standards.md#end-to-end-tests)
     - [Test Data Management](./test-strategy-and-standards.md#test-data-management)
     - [Continuous Testing](./test-strategy-and-standards.md#continuous-testing)
