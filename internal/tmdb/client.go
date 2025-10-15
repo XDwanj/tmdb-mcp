@@ -49,12 +49,43 @@ func NewClient(cfg config.TMDBConfig, logger *zap.Logger) *Client {
 				req.SetQueryParam("language", cfg.Language)
 			}
 			return nil
+		}).
+		// 配置重试机制
+		SetRetryCount(3).
+		SetRetryWaitTime(1 * time.Second).
+		SetRetryMaxWaitTime(10 * time.Second).
+		// 自定义重试条件：仅对 429/500/502/503 重试
+		AddRetryCondition(func(res *resty.Response, err error) bool {
+			// 网络错误或 nil response，由 Resty 默认条件处理
+			if err != nil || res == nil {
+				return false
+			}
+
+			// 仅对特定状态码重试
+			statusCode := res.StatusCode()
+			return statusCode == 429 || statusCode == 500 || statusCode == 502 || statusCode == 503
+		}).
+		// 添加重试钩子：记录重试日志
+		AddRetryHook(func(res *resty.Response, err error) {
+			statusCode := 0
+			endpoint := ""
+			if res != nil {
+				statusCode = res.StatusCode()
+				endpoint = res.Request.URL
+			}
+
+			logger.Warn("Retrying TMDB API request",
+				zap.String("endpoint", endpoint),
+				zap.Int("status_code", statusCode),
+				zap.Error(err),
+			)
 		})
 
 	logger.Debug("TMDB client initialized",
 		zap.String("base_url", baseURL),
 		zap.String("language", cfg.Language),
 		zap.String("user_agent", userAgent),
+		zap.Int("retry_count", 3),
 	)
 
 	// Create rate limiter

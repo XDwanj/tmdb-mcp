@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -15,6 +16,10 @@ const (
 
 // Search searches for movies, TV shows, and people using a query string
 func (c *Client) Search(ctx context.Context, query string, page int, language *string) (*SearchResponse, error) {
+	// 记录请求开始时间
+	startTime := time.Now()
+	endpoint := "/search/multi"
+
 	// 验证 query 参数
 	if query == "" {
 		return nil, errors.New("query parameter is required")
@@ -30,7 +35,8 @@ func (c *Client) Search(ctx context.Context, query string, page int, language *s
 		page = 1
 	}
 
-	c.logger.Info("Searching TMDB",
+	c.logger.Debug("Starting TMDB API request",
+		zap.String("endpoint", endpoint),
 		zap.String("query", query),
 		zap.Int("page", page),
 	)
@@ -54,20 +60,31 @@ func (c *Client) Search(ctx context.Context, query string, page int, language *s
 		req.SetQueryParam("language", *language)
 	}
 
-	resp, err := req.Get("/search/multi")
+	resp, err := req.Get(endpoint)
+	responseTime := time.Since(startTime)
 
 	if err != nil {
-		c.logger.Error("Search failed", zap.Error(err), zap.String("query", query))
+		c.logger.Error("Search failed",
+			zap.String("endpoint", endpoint),
+			zap.String("query", query),
+			zap.String("error_type", ErrorTypeNetwork),
+			zap.Duration("response_time", responseTime),
+			zap.Error(err),
+		)
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
 
 	// 处理 HTTP 错误
 	if resp.IsError() {
+		statusCode := resp.StatusCode()
+
 		// 404 返回空结果，不返回错误
-		if resp.StatusCode() == 404 {
+		if statusCode == 404 {
 			c.logger.Info("Search returned no results",
+				zap.String("endpoint", endpoint),
 				zap.String("query", query),
-				zap.Int("status_code", 404),
+				zap.Int("status_code", statusCode),
+				zap.Duration("response_time", responseTime),
 			)
 			return &SearchResponse{
 				Page:         page,
@@ -79,13 +96,28 @@ func (c *Client) Search(ctx context.Context, query string, page int, language *s
 
 		// 其他错误使用 handleError 处理
 		err := handleError(resp)
-		c.logger.Error("Search API error", zap.Error(err), zap.String("query", query))
+		errorType := ErrorTypeUnknown
+		if tmdbErr, ok := err.(*TMDBError); ok {
+			errorType = tmdbErr.ErrorType
+		}
+
+		c.logger.Error("Search API error",
+			zap.String("endpoint", endpoint),
+			zap.String("query", query),
+			zap.String("error_type", errorType),
+			zap.Int("status_code", statusCode),
+			zap.Duration("response_time", responseTime),
+			zap.Error(err),
+		)
 		return nil, fmt.Errorf("search API error: %w", err)
 	}
 
-	c.logger.Info("Search completed",
+	c.logger.Info("Search completed successfully",
+		zap.String("endpoint", endpoint),
 		zap.String("query", query),
-		zap.Int("results", len(searchResp.Results)),
+		zap.Int("status_code", resp.StatusCode()),
+		zap.Duration("response_time", responseTime),
+		zap.Int("result_count", len(searchResp.Results)),
 		zap.Int("total_results", searchResp.TotalResults),
 	)
 

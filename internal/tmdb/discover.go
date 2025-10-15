@@ -3,6 +3,7 @@ package tmdb
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -34,6 +35,10 @@ type DiscoverTVParams struct {
 
 // DiscoverMovies discovers movies using various filters
 func (c *Client) DiscoverMovies(ctx context.Context, params DiscoverMoviesParams) (*DiscoverMoviesResponse, error) {
+	// 记录请求开始时间
+	startTime := time.Now()
+	endpoint := "/discover/movie"
+
 	// 参数验证
 	if params.VoteAverageGte < 0 || params.VoteAverageGte > 10 {
 		return nil, fmt.Errorf("vote_average.gte must be between 0 and 10")
@@ -50,7 +55,8 @@ func (c *Client) DiscoverMovies(ctx context.Context, params DiscoverMoviesParams
 		params.SortBy = "popularity.desc"
 	}
 
-	c.logger.Debug("Discovering movies",
+	c.logger.Debug("Starting TMDB API request",
+		zap.String("endpoint", endpoint),
 		zap.String("with_genres", params.WithGenres),
 		zap.Int("primary_release_year", params.PrimaryReleaseYear),
 		zap.Float64("vote_average_gte", params.VoteAverageGte),
@@ -94,18 +100,30 @@ func (c *Client) DiscoverMovies(ctx context.Context, params DiscoverMoviesParams
 
 	// 调用 TMDB API /discover/movie 端点
 	var response DiscoverMoviesResponse
-	resp, err := req.SetResult(&response).Get("/discover/movie")
+	resp, err := req.SetResult(&response).Get(endpoint)
+	responseTime := time.Since(startTime)
 
 	if err != nil {
-		c.logger.Error("Discover movies failed", zap.Error(err))
+		c.logger.Error("Discover movies failed",
+			zap.String("endpoint", endpoint),
+			zap.String("error_type", ErrorTypeNetwork),
+			zap.Duration("response_time", responseTime),
+			zap.Error(err),
+		)
 		return nil, fmt.Errorf("discover movies failed: %w", err)
 	}
 
 	// 处理 HTTP 错误
 	if resp.IsError() {
+		statusCode := resp.StatusCode()
+
 		// 404 返回空结果
-		if resp.StatusCode() == 404 {
-			c.logger.Info("Discover movies returned no results")
+		if statusCode == 404 {
+			c.logger.Info("Discover movies returned no results",
+				zap.String("endpoint", endpoint),
+				zap.Int("status_code", statusCode),
+				zap.Duration("response_time", responseTime),
+			)
 			return &DiscoverMoviesResponse{
 				Page:         params.Page,
 				Results:      []DiscoverMovieResult{},
@@ -116,12 +134,26 @@ func (c *Client) DiscoverMovies(ctx context.Context, params DiscoverMoviesParams
 
 		// 其他错误使用 handleError 处理
 		err := handleError(resp)
-		c.logger.Error("Discover movies API error", zap.Error(err))
+		errorType := ErrorTypeUnknown
+		if tmdbErr, ok := err.(*TMDBError); ok {
+			errorType = tmdbErr.ErrorType
+		}
+
+		c.logger.Error("Discover movies API error",
+			zap.String("endpoint", endpoint),
+			zap.String("error_type", errorType),
+			zap.Int("status_code", statusCode),
+			zap.Duration("response_time", responseTime),
+			zap.Error(err),
+		)
 		return nil, fmt.Errorf("discover movies API error: %w", err)
 	}
 
 	c.logger.Info("Movies discovered successfully",
-		zap.Int("count", len(response.Results)),
+		zap.String("endpoint", endpoint),
+		zap.Int("status_code", resp.StatusCode()),
+		zap.Duration("response_time", responseTime),
+		zap.Int("result_count", len(response.Results)),
 		zap.Int("total_results", response.TotalResults),
 	)
 
@@ -130,6 +162,10 @@ func (c *Client) DiscoverMovies(ctx context.Context, params DiscoverMoviesParams
 
 // DiscoverTV discovers TV shows using various filters
 func (c *Client) DiscoverTV(ctx context.Context, params DiscoverTVParams) (*DiscoverTVResponse, error) {
+	// 记录请求开始时间
+	startTime := time.Now()
+	endpoint := "/discover/tv"
+
 	// 参数验证
 	if params.VoteAverageGte < 0 || params.VoteAverageGte > 10 {
 		return nil, fmt.Errorf("vote_average.gte must be between 0 and 10")
@@ -146,7 +182,8 @@ func (c *Client) DiscoverTV(ctx context.Context, params DiscoverTVParams) (*Disc
 		params.SortBy = "popularity.desc"
 	}
 
-	c.logger.Debug("Discovering TV shows",
+	c.logger.Debug("Starting TMDB API request",
+		zap.String("endpoint", endpoint),
 		zap.String("with_genres", params.WithGenres),
 		zap.Int("first_air_date_year", params.FirstAirDateYear),
 		zap.Float64("vote_average_gte", params.VoteAverageGte),
@@ -194,18 +231,30 @@ func (c *Client) DiscoverTV(ctx context.Context, params DiscoverTVParams) (*Disc
 
 	// 调用 TMDB API /discover/tv 端点
 	var response DiscoverTVResponse
-	resp, err := req.SetResult(&response).Get("/discover/tv")
+	resp, err := req.SetResult(&response).Get(endpoint)
+	responseTime := time.Since(startTime)
 
 	if err != nil {
-		c.logger.Error("Discover TV shows failed", zap.Error(err))
+		c.logger.Error("Discover TV shows failed",
+			zap.String("endpoint", endpoint),
+			zap.String("error_type", ErrorTypeNetwork),
+			zap.Duration("response_time", responseTime),
+			zap.Error(err),
+		)
 		return nil, fmt.Errorf("discover TV shows failed: %w", err)
 	}
 
 	// 处理 HTTP 错误
 	if resp.IsError() {
+		statusCode := resp.StatusCode()
+
 		// 404 返回空结果
-		if resp.StatusCode() == 404 {
-			c.logger.Info("Discover TV shows returned no results")
+		if statusCode == 404 {
+			c.logger.Info("Discover TV shows returned no results",
+				zap.String("endpoint", endpoint),
+				zap.Int("status_code", statusCode),
+				zap.Duration("response_time", responseTime),
+			)
 			return &DiscoverTVResponse{
 				Page:         params.Page,
 				Results:      []DiscoverTVResult{},
@@ -216,12 +265,26 @@ func (c *Client) DiscoverTV(ctx context.Context, params DiscoverTVParams) (*Disc
 
 		// 其他错误使用 handleError 处理
 		err := handleError(resp)
-		c.logger.Error("Discover TV shows API error", zap.Error(err))
+		errorType := ErrorTypeUnknown
+		if tmdbErr, ok := err.(*TMDBError); ok {
+			errorType = tmdbErr.ErrorType
+		}
+
+		c.logger.Error("Discover TV shows API error",
+			zap.String("endpoint", endpoint),
+			zap.String("error_type", errorType),
+			zap.Int("status_code", statusCode),
+			zap.Duration("response_time", responseTime),
+			zap.Error(err),
+		)
 		return nil, fmt.Errorf("discover TV shows API error: %w", err)
 	}
 
 	c.logger.Info("TV shows discovered successfully",
-		zap.Int("count", len(response.Results)),
+		zap.String("endpoint", endpoint),
+		zap.Int("status_code", resp.StatusCode()),
+		zap.Duration("response_time", responseTime),
+		zap.Int("result_count", len(response.Results)),
 		zap.Int("total_results", response.TotalResults),
 	)
 

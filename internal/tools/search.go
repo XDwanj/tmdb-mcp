@@ -54,7 +54,7 @@ func (t *SearchTool) Handler() func(context.Context, *mcp.CallToolRequest, Searc
 				zap.Error(err),
 				zap.String("query", params.Query),
 			)
-			return nil, SearchResponse{}, err
+			return nil, SearchResponse{}, convertTMDBError(err, "content")
 		}
 
 		t.logger.Info("Search completed",

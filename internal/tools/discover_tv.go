@@ -85,7 +85,7 @@ func (t *DiscoverTVTool) Handler() func(context.Context, *mcp.CallToolRequest, D
 			t.logger.Error("Discover TV shows failed",
 				zap.Error(err),
 			)
-			return nil, nil, err
+			return nil, nil, convertTMDBError(err, "TV shows")
 		}
 
 		// 检查结果为空（但不是错误）

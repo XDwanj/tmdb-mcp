@@ -63,7 +63,7 @@ func (t *GetDetailsTool) Handler() func(context.Context, *mcp.CallToolRequest, G
 					zap.String("media_type", params.MediaType),
 					zap.Int("id", params.ID),
 				)
-				return nil, nil, err
+				return nil, nil, convertTMDBError(err, "movie")
 			}
 			// 检查资源是否存在（404 情况）
 			if movieDetails == nil {
@@ -71,7 +71,7 @@ func (t *GetDetailsTool) Handler() func(context.Context, *mcp.CallToolRequest, G
 					zap.String("media_type", params.MediaType),
 					zap.Int("id", params.ID),
 				)
-				return nil, nil, fmt.Errorf("%s with ID %d not found", params.MediaType, params.ID)
+				return nil, nil, fmt.Errorf("the requested movie was not found")
 			}
 			t.logger.Info("Get details completed",
 				zap.String("media_type", params.MediaType),
@@ -87,7 +87,7 @@ func (t *GetDetailsTool) Handler() func(context.Context, *mcp.CallToolRequest, G
 					zap.String("media_type", params.MediaType),
 					zap.Int("id", params.ID),
 				)
-				return nil, nil, err
+				return nil, nil, convertTMDBError(err, "TV show")
 			}
 			// 检查资源是否存在（404 情况）
 			if tvDetails == nil {
@@ -95,7 +95,7 @@ func (t *GetDetailsTool) Handler() func(context.Context, *mcp.CallToolRequest, G
 					zap.String("media_type", params.MediaType),
 					zap.Int("id", params.ID),
 				)
-				return nil, nil, fmt.Errorf("%s with ID %d not found", params.MediaType, params.ID)
+				return nil, nil, fmt.Errorf("the requested TV show was not found")
 			}
 			t.logger.Info("Get details completed",
 				zap.String("media_type", params.MediaType),
@@ -111,7 +111,7 @@ func (t *GetDetailsTool) Handler() func(context.Context, *mcp.CallToolRequest, G
 					zap.String("media_type", params.MediaType),
 					zap.Int("id", params.ID),
 				)
-				return nil, nil, err
+				return nil, nil, convertTMDBError(err, "person")
 			}
 			// 检查资源是否存在（404 情况）
 			if personDetails == nil {
@@ -119,7 +119,7 @@ func (t *GetDetailsTool) Handler() func(context.Context, *mcp.CallToolRequest, G
 					zap.String("media_type", params.MediaType),
 					zap.Int("id", params.ID),
 				)
-				return nil, nil, fmt.Errorf("%s with ID %d not found", params.MediaType, params.ID)
+				return nil, nil, fmt.Errorf("the requested person was not found")
 			}
 			t.logger.Info("Get details completed",
 				zap.String("media_type", params.MediaType),

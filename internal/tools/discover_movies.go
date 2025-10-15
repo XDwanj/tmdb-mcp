@@ -81,7 +81,7 @@ func (t *DiscoverMoviesTool) Handler() func(context.Context, *mcp.CallToolReques
 			t.logger.Error("Discover movies failed",
 				zap.Error(err),
 			)
-			return nil, nil, err
+			return nil, nil, convertTMDBError(err, "movies")
 		}
 
 		// 检查结果为空（但不是错误）
