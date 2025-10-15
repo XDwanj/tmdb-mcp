@@ -57,6 +57,13 @@ func NewServer(tmdbClient *tmdb.Client, logger *zap.Logger) *Server {
 		Description: discoverTVTool.Description(),
 	}, discoverTVTool.Handler())
 
+	// Create and register get_trending tool
+	getTrendingTool := tools.NewGetTrendingTool(tmdbClient, logger)
+	mcp.AddTool(mcpServer, &mcp.Tool{
+		Name:        getTrendingTool.Name(),
+		Description: getTrendingTool.Description(),
+	}, getTrendingTool.Handler())
+
 	return &Server{
 		mcpServer:  mcpServer,
 		tmdbClient: tmdbClient,

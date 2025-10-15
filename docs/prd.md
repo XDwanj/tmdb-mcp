@@ -277,10 +277,10 @@ logging:
 **目标**: 建立项目基础设施并实现第一个可工作的 MCP 工具（search），支持通过 stdio 模式搜索电影、电视剧和人物。
 
 ### Epic 2: Details & Discovery Tools
-**目标**: 实现内容详情获取和发现功能，支持智能文件重命名场景和内容筛选场景，完善错误处理机制。
+**目标**: 实现内容详情获取和发现功能，支持智能文件重命名场景和内容筛选场景，完善错误处理机制。核心工具集功能完备，自动化测试验证所有使用场景的可行性。
 
 ### Epic 3: Trending & Recommendations
-**目标**: 实现趋势和推荐工具，完成所有 6 个核心 MCP 工具，优化速率限制和性能监控，stdio 模式功能完整可用。
+**目标**: 实现趋势和推荐工具，完成所有 6 个核心 MCP 工具，优化速率限制和性能监控。通过全面的自动化集成测试验证所有工具协同工作，确保性能指标符合 NFR 要求。此 Epic 完成后，stdio 模式功能完整可用，达到 MVP 核心功能完整的里程碑。可选地准备演示材料用于后续文档和社区宣传。
 
 ### Epic 4: SSE Remote Access Mode
 **目标**: 使用 MCP SDK 的 SSEHTTPHandler 和标准库 net/http 实现 SSE 远程访问模式和 Token 认证，支持 stdio + sse 双模式运行，完成 Docker 镜像构建和部署。
@@ -474,7 +474,7 @@ func TestSearchTool_Integration(t *testing.T) {
 
 ### Epic 2: Details & Discovery Tools
 
-**Epic Goal**: 实现内容详情获取工具（get_details）和内容发现工具（discover_movies、discover_tv），使用户能够获取电影/电视剧/人物的完整信息，并通过自然语言表达的筛选条件探索新内容。完善错误处理机制，优雅处理 TMDB API 的各类错误（401/404/429）。此 Epic 完成后，用户可以通过 Claude 完成智能文件重命名场景（search + get_details）和内容发现场景（discover），验证核心使用场景的可行性。
+**Epic Goal**: 实现内容详情获取工具（get_details）和内容发现工具（discover_movies、discover_tv），使用户能够获取电影/电视剧/人物的完整信息，并通过自然语言表达的筛选条件探索新内容。完善错误处理机制，优雅处理 TMDB API 的各类错误（401/404/429）。此 Epic 完成后，核心工具集功能完备，自动化测试验证所有使用场景的可行性。
 
 #### Story 2.1: Implement get_details Tool
 
@@ -551,25 +551,20 @@ func TestSearchTool_Integration(t *testing.T) {
 10. 编写单元测试：Mock 各类错误响应、验证重试逻辑
 11. 编写集成测试：使用无效 API Key 触发 401、请求不存在的 ID 触发 404
 
-#### Story 2.5: Integration Testing - Smart File Renaming Scenario
+#### Story 2.5: (已删除)
 
-**As a** user,
-**I want** to use the search and get_details tools together to identify and rename movie files,
-**so that** I can verify the intelligent file renaming scenario works end-to-end.
+**说明**: 此 Story 已移除。原 Story 2.5 依赖外部工具（Claude Code）进行手动测试，导致测试不可靠且无法自动化。文件重命名场景的测试已由 Story 1.7（自动化集成测试）和 Story 3.4（综合集成测试）充分覆盖。
 
-**Acceptance Criteria**:
-
-1. 使用 Claude Code 执行测试场景：标准文件重命名、复杂文件名、电视剧文件、歧义文件名、无法识别的文件名
-2. 性能验证：每个场景总响应时间 < 5 秒、API 调用次数通常为 2 次
-3. 错误处理验证：搜索无结果时提示用户、API 错误时返回友好消息
-4. 记录测试结果到 `.ai/epic2-file-renaming-tests.md`，记录成功率
-5. 文档更新：在 README 添加"文件重命名"使用示例
+**文件重命名场景的自动化测试策略**:
+- Story 1.7 已使用 InMemoryTransports 模拟完整 MCP 协议交互
+- Story 3.4 提供多工具组合测试（search → get_details）
+- 文档示例将在 Epic 5 (Story 5.2) 中提供
 
 ---
 
 ### Epic 3: Trending & Recommendations
 
-**Epic Goal**: 实现最后两个 MCP 工具（get_trending 和 get_recommendations），完成所有 6 个核心工具的功能集。添加性能监控和指标记录，优化 API 调用效率和响应时间。通过全面的集成测试验证所有工具协同工作，并进行端到端场景测试验证 4 个核心使用场景（智能文件重命名、片荒推荐、关联探索、智能推荐）。此 Epic 完成后，stdio 模式功能完整可用，达到 MVP 核心功能完整的里程碑。
+**Epic Goal**: 实现最后两个 MCP 工具（get_trending 和 get_recommendations），完成所有 6 个核心工具的功能集。添加性能监控和指标记录，优化 API 调用效率和响应时间。通过全面的自动化集成测试验证所有工具协同工作，确保性能指标符合 NFR 要求。此 Epic 完成后，stdio 模式功能完整可用，达到 MVP 核心功能完整的里程碑。可选地准备演示材料用于后续文档和社区宣传。
 
 #### Story 3.1: Implement get_trending Tool
 
@@ -641,11 +636,13 @@ func TestSearchTool_Integration(t *testing.T) {
 6. 测试覆盖率：使用 `go test -cover` 检查覆盖率，目标：核心业务逻辑覆盖率 ≥ 70%
 7. 测试结果文档：记录到 `.ai/epic3-integration-tests.md`
 
-#### Story 3.5: End-to-End Scenario Validation
+#### Story 3.5: End-to-End Scenario Validation (Optional Documentation)
 
 **As a** user,
-**I want** to validate all 4 core usage scenarios using Claude Code,
-**so that** I can verify the stdio mode is fully functional and provides value in real-world use cases.
+**I want** to prepare demonstration materials and document real-world usage scenarios,
+**so that** potential users can understand the value of tmdb-mcp in practical contexts.
+
+**注意**: 此 Story 为**可选**，主要用于准备演示材料和用户文档，**不作为 Epic 3 完成的阻塞条件**。技术验证已由 Story 1.7 和 3.4 的自动化测试完成。
 
 **Acceptance Criteria**:
 
@@ -656,7 +653,13 @@ func TestSearchTool_Integration(t *testing.T) {
 5. 错误恢复验证：故意提供模糊或错误输入，验证 Claude 能够引导用户
 6. 测试结果文档：记录截图/日志到 `.ai/epic3-e2e-scenarios.md`，记录用户体验评分
 7. 问题修复：记录所有问题、修复阻塞性问题
-8. 里程碑确认：所有 4 个核心场景成功率 ≥ 80%、6 个工具全部正常、性能指标符合 NFR、stdio 模式功能完整
+8. 交付物：演示材料（截图/录屏）记录到 `.ai/epic3-e2e-scenarios.md`，用于 Epic 5 文档和社区宣传
+
+**里程碑确认标准（移至 Story 3.4）**:
+- ✅ 所有 6 个工具的自动化集成测试通过
+- ✅ 多工具组合测试成功（Story 3.4）
+- ✅ 性能指标符合 NFR（Story 3.3 + 3.4）
+- ✅ 测试覆盖率 ≥ 70%（Story 3.4）
 
 ---
 

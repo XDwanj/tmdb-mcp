@@ -45,3 +45,16 @@ type DiscoverTVParams struct {
 	Page                 *int     `json:"page,omitempty" jsonschema:"Page number (default: 1)"`
 	Language             *string  `json:"language,omitempty" jsonschema:"ISO 639-1 language code (e.g., 'en', 'zh'). If not specified, uses config default"` // 语言参数（可选）
 }
+
+// GetTrendingParams represents the parameters for the get_trending tool
+type GetTrendingParams struct {
+	MediaType  string  `json:"media_type" jsonschema:"Media type to get trending items for (movie/tv/person)"`                                     // 媒体类型（必需）
+	TimeWindow string  `json:"time_window" jsonschema:"Time window for trending items (day/week)"`                                                 // 时间窗口（必需）
+	Page       *int    `json:"page,omitempty" jsonschema:"Page number (default: 1)"`                                                               // 页码（可选，默认 1）
+	Language   *string `json:"language,omitempty" jsonschema:"ISO 639-1 language code (e.g., 'en', 'zh'). If not specified, uses config default"` // 语言参数（可选）
+}
+
+// GetTrendingResponse represents the response from the get_trending tool
+type GetTrendingResponse struct {
+	Results []tmdb.TrendingResult `json:"results" jsonschema:"List of trending items"`
+}

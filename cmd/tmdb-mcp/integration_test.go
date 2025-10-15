@@ -1382,3 +1382,337 @@ func TestDiscoverTVTool_ErrorScenarios(t *testing.T) {
 		})
 	}
 }
+
+// TestGetTrendingTool_Integration tests the get_trending tool (AC: 11)
+func TestGetTrendingTool_Integration(t *testing.T) {
+	env := setupTestEnvironment(t)
+
+	tests := []struct {
+		name           string
+		mediaType      string
+		timeWindow     string
+		minResults     int
+		validateResult func(*testing.T, *tools.GetTrendingResponse)
+	}{
+		{
+			name:       "today trending movies",
+			mediaType:  "movie",
+			timeWindow: "day",
+			minResults: 1,
+			validateResult: func(t *testing.T, resp *tools.GetTrendingResponse) {
+				if len(resp.Results) > 0 {
+					firstResult := resp.Results[0]
+					assert.Equal(t, "movie", firstResult.MediaType, "Result should be a movie")
+					assert.NotEmpty(t, firstResult.Title, "Movie should have a title")
+					assert.Greater(t, firstResult.Popularity, 0.0, "Movie should have popularity")
+					t.Logf("✓ Found trending movie: %s (Popularity: %.1f)", firstResult.Title, firstResult.Popularity)
+				}
+			},
+		},
+		{
+			name:       "this week trending TV shows",
+			mediaType:  "tv",
+			timeWindow: "week",
+			minResults: 1,
+			validateResult: func(t *testing.T, resp *tools.GetTrendingResponse) {
+				if len(resp.Results) > 0 {
+					firstResult := resp.Results[0]
+					assert.Equal(t, "tv", firstResult.MediaType, "Result should be a TV show")
+					assert.NotEmpty(t, firstResult.Name, "TV show should have a name")
+					assert.Greater(t, firstResult.Popularity, 0.0, "TV show should have popularity")
+					t.Logf("✓ Found trending TV show: %s (Popularity: %.1f)", firstResult.Name, firstResult.Popularity)
+				}
+			},
+		},
+		{
+			name:       "today trending people",
+			mediaType:  "person",
+			timeWindow: "day",
+			minResults: 1,
+			validateResult: func(t *testing.T, resp *tools.GetTrendingResponse) {
+				if len(resp.Results) > 0 {
+					firstResult := resp.Results[0]
+					assert.Equal(t, "person", firstResult.MediaType, "Result should be a person")
+					assert.NotEmpty(t, firstResult.Name, "Person should have a name")
+					assert.Greater(t, firstResult.Popularity, 0.0, "Person should have popularity")
+					t.Logf("✓ Found trending person: %s (Popularity: %.1f)", firstResult.Name, firstResult.Popularity)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mcs := setupMCPClientServer(t, env)
+			defer mcs.cleanup()
+
+			ctx := context.Background()
+
+			// Measure response time
+			start := time.Now()
+
+			// Call get_trending tool
+			result, err := mcs.clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
+				Name: "get_trending",
+				Arguments: map[string]any{
+					"media_type":  tt.mediaType,
+					"time_window": tt.timeWindow,
+					"page":        1,
+				},
+			})
+
+			duration := time.Since(start)
+
+			// Verify no error
+			require.NoError(t, err, "CallTool should not return error")
+			assert.NotNil(t, result, "Result should not be nil")
+			assert.False(t, result.IsError, "Result should not be an error")
+
+			// Verify performance: response time should be less than 3 seconds
+			assert.Less(t, duration, 3*time.Second, "GetTrending should complete within 3 seconds")
+			t.Logf("✓ Response time: %v", duration)
+
+			// Verify result structure
+			assert.Len(t, result.Content, 1, "Result should have exactly 1 content item")
+
+			// Extract text content
+			textContent, ok := result.Content[0].(*mcpsdk.TextContent)
+			require.True(t, ok, "Content should be TextContent type")
+
+			// Parse JSON response
+			var response tools.GetTrendingResponse
+			err = json.Unmarshal([]byte(textContent.Text), &response)
+			require.NoError(t, err, "Failed to unmarshal response JSON")
+
+			// Verify minimum result count
+			assert.GreaterOrEqual(t, len(response.Results), tt.minResults,
+				"Should have at least %d result(s)", tt.minResults)
+
+			// Run custom validation
+			if tt.validateResult != nil {
+				tt.validateResult(t, &response)
+			}
+		})
+	}
+}
+
+// TestGetTrendingTool_DataIntegrity tests data structure integrity for get_trending (AC: 11)
+func TestGetTrendingTool_DataIntegrity(t *testing.T) {
+	env := setupTestEnvironment(t)
+	mcs := setupMCPClientServer(t, env)
+	defer mcs.cleanup()
+
+	ctx := context.Background()
+
+	// Test movie trending
+	t.Run("movie trending data integrity", func(t *testing.T) {
+		result, err := mcs.clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
+			Name: "get_trending",
+			Arguments: map[string]any{
+				"media_type":  "movie",
+				"time_window": "day",
+				"page":        1,
+			},
+		})
+
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+
+		textContent, ok := result.Content[0].(*mcpsdk.TextContent)
+		require.True(t, ok)
+
+		var response tools.GetTrendingResponse
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+
+		// Verify results exist
+		assert.NotEmpty(t, response.Results, "Results should not be empty")
+
+		// Verify first result has all required fields
+		if len(response.Results) > 0 {
+			firstResult := response.Results[0]
+			assert.NotZero(t, firstResult.ID, "Result should have ID")
+			assert.Equal(t, "movie", firstResult.MediaType, "Result should be a movie")
+			assert.NotEmpty(t, firstResult.Title, "Movie should have title")
+			assert.NotEmpty(t, firstResult.ReleaseDate, "Movie should have release_date")
+			assert.GreaterOrEqual(t, firstResult.VoteAverage, 0.0, "Movie should have vote_average")
+			assert.NotEmpty(t, firstResult.Overview, "Movie should have overview")
+			assert.Greater(t, firstResult.Popularity, 0.0, "Movie should have popularity")
+
+			t.Logf("✓ Data integrity verified: ID=%d, Title=%s, Rating=%.1f, Popularity=%.1f",
+				firstResult.ID,
+				firstResult.Title,
+				firstResult.VoteAverage,
+				firstResult.Popularity)
+		}
+	})
+
+	// Test TV trending
+	t.Run("tv trending data integrity", func(t *testing.T) {
+		result, err := mcs.clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
+			Name: "get_trending",
+			Arguments: map[string]any{
+				"media_type":  "tv",
+				"time_window": "week",
+				"page":        1,
+			},
+		})
+
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+
+		textContent, ok := result.Content[0].(*mcpsdk.TextContent)
+		require.True(t, ok)
+
+		var response tools.GetTrendingResponse
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+
+		// Verify first result has all required TV fields
+		if len(response.Results) > 0 {
+			firstResult := response.Results[0]
+			assert.NotZero(t, firstResult.ID, "Result should have ID")
+			assert.Equal(t, "tv", firstResult.MediaType, "Result should be a TV show")
+			assert.NotEmpty(t, firstResult.Name, "TV show should have name")
+			assert.NotEmpty(t, firstResult.FirstAirDate, "TV show should have first_air_date")
+			assert.GreaterOrEqual(t, firstResult.VoteAverage, 0.0, "TV show should have vote_average")
+			assert.Greater(t, firstResult.Popularity, 0.0, "TV show should have popularity")
+
+			t.Logf("✓ Data integrity verified: ID=%d, Name=%s, Rating=%.1f, Popularity=%.1f",
+				firstResult.ID,
+				firstResult.Name,
+				firstResult.VoteAverage,
+				firstResult.Popularity)
+		}
+	})
+
+	// Test person trending
+	t.Run("person trending data integrity", func(t *testing.T) {
+		result, err := mcs.clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
+			Name: "get_trending",
+			Arguments: map[string]any{
+				"media_type":  "person",
+				"time_window": "day",
+				"page":        1,
+			},
+		})
+
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+
+		textContent, ok := result.Content[0].(*mcpsdk.TextContent)
+		require.True(t, ok)
+
+		var response tools.GetTrendingResponse
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+
+		// Verify first result has all required person fields
+		if len(response.Results) > 0 {
+			firstResult := response.Results[0]
+			assert.NotZero(t, firstResult.ID, "Result should have ID")
+			assert.Equal(t, "person", firstResult.MediaType, "Result should be a person")
+			assert.NotEmpty(t, firstResult.Name, "Person should have name")
+			assert.Greater(t, firstResult.Popularity, 0.0, "Person should have popularity")
+			// KnownForDepartment is optional for some people
+			t.Logf("✓ Data integrity verified: ID=%d, Name=%s, Department=%s, Popularity=%.1f",
+				firstResult.ID,
+				firstResult.Name,
+				firstResult.KnownForDepartment,
+				firstResult.Popularity)
+		}
+	})
+}
+
+// TestGetTrendingTool_ErrorScenarios tests error handling for get_trending (AC: 11)
+func TestGetTrendingTool_ErrorScenarios(t *testing.T) {
+	env := setupTestEnvironment(t)
+
+	tests := []struct {
+		name          string
+		arguments     map[string]any
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name: "invalid media_type",
+			arguments: map[string]any{
+				"media_type":  "invalid",
+				"time_window": "day",
+			},
+			expectError:   true,
+			errorContains: "invalid media_type",
+		},
+		{
+			name: "invalid time_window",
+			arguments: map[string]any{
+				"media_type":  "movie",
+				"time_window": "month",
+			},
+			expectError:   true,
+			errorContains: "invalid time_window",
+		},
+		{
+			name: "valid combination - movie/day",
+			arguments: map[string]any{
+				"media_type":  "movie",
+				"time_window": "day",
+			},
+			expectError: false,
+		},
+		{
+			name: "valid combination - tv/week",
+			arguments: map[string]any{
+				"media_type":  "tv",
+				"time_window": "week",
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mcs := setupMCPClientServer(t, env)
+			defer mcs.cleanup()
+
+			ctx := context.Background()
+
+			// Call get_trending tool
+			result, err := mcs.clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
+				Name:      "get_trending",
+				Arguments: tt.arguments,
+			})
+
+			if tt.expectError {
+				// Should return error via IsError field
+				require.NoError(t, err, "MCP protocol should not fail")
+				require.NotNil(t, result, "Result should not be nil")
+				assert.True(t, result.IsError, "IsError should be true for %s", tt.name)
+
+				// Extract error message
+				if len(result.Content) > 0 {
+					textContent, ok := result.Content[0].(*mcpsdk.TextContent)
+					if ok {
+						assert.Contains(t, textContent.Text, tt.errorContains,
+							"Error message should contain '%s'", tt.errorContains)
+						t.Logf("✓ Got expected error: %s", textContent.Text)
+					}
+				}
+			} else {
+				// Should succeed
+				require.NoError(t, err, "Should not return error for %s", tt.name)
+				assert.NotNil(t, result, "Result should not be nil")
+				assert.False(t, result.IsError, "Should not be error for valid parameters")
+
+				textContent, ok := result.Content[0].(*mcpsdk.TextContent)
+				require.True(t, ok, "Content should be TextContent type")
+
+				var response tools.GetTrendingResponse
+				err = json.Unmarshal([]byte(textContent.Text), &response)
+				require.NoError(t, err, "Failed to unmarshal response JSON")
+
+				t.Logf("✓ Query succeeded with %d results", len(response.Results))
+			}
+		})
+	}
+}
