@@ -64,6 +64,13 @@ func NewServer(tmdbClient *tmdb.Client, logger *zap.Logger) *Server {
 		Description: getTrendingTool.Description(),
 	}, getTrendingTool.Handler())
 
+	// Create and register get_recommendations tool
+	getRecommendationsTool := tools.NewGetRecommendationsTool(tmdbClient, logger)
+	mcp.AddTool(mcpServer, &mcp.Tool{
+		Name:        getRecommendationsTool.Name(),
+		Description: getRecommendationsTool.Description(),
+	}, getRecommendationsTool.Handler())
+
 	return &Server{
 		mcpServer:  mcpServer,
 		tmdbClient: tmdbClient,

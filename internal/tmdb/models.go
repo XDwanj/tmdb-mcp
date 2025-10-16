@@ -172,14 +172,14 @@ type DiscoverTVResponse struct {
 // TrendingResult represents a single result from TMDB trending endpoint
 type TrendingResult struct {
 	ID                 int     `json:"id"`
-	MediaType          string  `json:"media_type"`          // "movie", "tv", "person"
-	Title              string  `json:"title"`               // 电影标题 (movie only)
-	Name               string  `json:"name"`                // 电视剧/人物名称 (tv/person)
-	ReleaseDate        string  `json:"release_date"`        // 上映日期 (movie only)
-	FirstAirDate       string  `json:"first_air_date"`      // 首播日期 (tv only)
-	VoteAverage        float64 `json:"vote_average"`        // 评分 (movie/tv)
-	Overview           string  `json:"overview"`            // 简介 (movie/tv)
-	Popularity         float64 `json:"popularity"`          // 流行度
+	MediaType          string  `json:"media_type"`           // "movie", "tv", "person"
+	Title              string  `json:"title"`                // 电影标题 (movie only)
+	Name               string  `json:"name"`                 // 电视剧/人物名称 (tv/person)
+	ReleaseDate        string  `json:"release_date"`         // 上映日期 (movie only)
+	FirstAirDate       string  `json:"first_air_date"`       // 首播日期 (tv only)
+	VoteAverage        float64 `json:"vote_average"`         // 评分 (movie/tv)
+	Overview           string  `json:"overview"`             // 简介 (movie/tv)
+	Popularity         float64 `json:"popularity"`           // 流行度
 	KnownForDepartment string  `json:"known_for_department"` // 职业 (person only)
 }
 
@@ -189,4 +189,24 @@ type TrendingResponse struct {
 	Results      []TrendingResult `json:"results"`
 	TotalPages   int              `json:"total_pages"`
 	TotalResults int              `json:"total_results"`
+}
+
+// RecommendationResult represents a single result from TMDB recommendations endpoint
+type RecommendationResult struct {
+	ID           int     `json:"id"`
+	Title        string  `json:"title"`          // 电影标题 (movie only)
+	Name         string  `json:"name"`           // 电视剧名称 (tv only)
+	ReleaseDate  string  `json:"release_date"`   // 上映日期 (movie only)
+	FirstAirDate string  `json:"first_air_date"` // 首播日期 (tv only)
+	VoteAverage  float64 `json:"vote_average"`   // 评分
+	Overview     string  `json:"overview"`       // 简介
+	Popularity   float64 `json:"popularity"`     // 流行度
+}
+
+// RecommendationsResponse represents the response from TMDB recommendations API
+type RecommendationsResponse struct {
+	Page         int                    `json:"page"`
+	Results      []RecommendationResult `json:"results"`
+	TotalPages   int                    `json:"total_pages"`
+	TotalResults int                    `json:"total_results"`
 }

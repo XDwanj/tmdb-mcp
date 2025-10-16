@@ -1,0 +1,137 @@
+package tmdb
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"go.uber.org/zap"
+)
+
+// GetMovieRecommendations gets movie recommendations based on a movie ID
+func (c *Client) GetMovieRecommendations(ctx context.Context, id int, page int) (*RecommendationsResponse, error) {
+	// 验证 ID 参数
+	if id <= 0 {
+		return nil, fmt.Errorf("invalid movie ID: %d, must be greater than 0", id)
+	}
+
+	// 设置默认页码
+	if page == 0 {
+		page = 1
+	}
+
+	// 构建端点路径
+	endpoint := fmt.Sprintf("/movie/%d/recommendations", id)
+
+	return c.getRecommendations(ctx, endpoint, "movie", id, page)
+}
+
+// GetTVRecommendations gets TV show recommendations based on a TV show ID
+func (c *Client) GetTVRecommendations(ctx context.Context, id int, page int) (*RecommendationsResponse, error) {
+	// 验证 ID 参数
+	if id <= 0 {
+		return nil, fmt.Errorf("invalid TV show ID: %d, must be greater than 0", id)
+	}
+
+	// 设置默认页码
+	if page == 0 {
+		page = 1
+	}
+
+	// 构建端点路径
+	endpoint := fmt.Sprintf("/tv/%d/recommendations", id)
+
+	return c.getRecommendations(ctx, endpoint, "tv", id, page)
+}
+
+// getRecommendations is a shared helper method for getting recommendations
+func (c *Client) getRecommendations(ctx context.Context, endpoint, mediaType string, id, page int) (*RecommendationsResponse, error) {
+	// 记录请求开始时间
+	startTime := time.Now()
+
+	c.logger.Debug("Starting TMDB API request",
+		zap.String("endpoint", endpoint),
+		zap.String("media_type", mediaType),
+		zap.Int("id", id),
+		zap.Int("page", page),
+	)
+
+	// Wait for rate limit
+	if err := c.rateLimiter.Wait(ctx); err != nil {
+		c.logger.Error("rate limit wait failed", zap.Error(err))
+		return nil, fmt.Errorf("rate limit wait failed: %w", err)
+	}
+
+	// 调用 TMDB API /movie/{id}/recommendations 或 /tv/{id}/recommendations 端点
+	var recommendationsResp RecommendationsResponse
+	resp, err := c.httpClient.R().
+		SetContext(ctx).
+		SetQueryParam("page", fmt.Sprintf("%d", page)).
+		SetResult(&recommendationsResp).
+		Get(endpoint)
+	responseTime := time.Since(startTime)
+
+	if err != nil {
+		c.logger.Error("GetRecommendations failed",
+			zap.String("endpoint", endpoint),
+			zap.String("media_type", mediaType),
+			zap.Int("id", id),
+			zap.String("error_type", ErrorTypeNetwork),
+			zap.Duration("response_time", responseTime),
+			zap.Error(err),
+		)
+		return nil, fmt.Errorf("get recommendations failed: %w", err)
+	}
+
+	// 处理 HTTP 错误
+	if resp.IsError() {
+		statusCode := resp.StatusCode()
+
+		// 404 返回空结果，不返回错误
+		if statusCode == 404 {
+			c.logger.Info("GetRecommendations returned no results",
+				zap.String("endpoint", endpoint),
+				zap.String("media_type", mediaType),
+				zap.Int("id", id),
+				zap.Int("status_code", statusCode),
+				zap.Duration("response_time", responseTime),
+			)
+			return &RecommendationsResponse{
+				Page:         page,
+				Results:      []RecommendationResult{},
+				TotalPages:   0,
+				TotalResults: 0,
+			}, nil
+		}
+
+		// 其他错误使用 handleError 处理
+		err := handleError(resp)
+		errorType := ErrorTypeUnknown
+		if tmdbErr, ok := err.(*TMDBError); ok {
+			errorType = tmdbErr.ErrorType
+		}
+
+		c.logger.Error("GetRecommendations API error",
+			zap.String("endpoint", endpoint),
+			zap.String("media_type", mediaType),
+			zap.Int("id", id),
+			zap.String("error_type", errorType),
+			zap.Int("status_code", statusCode),
+			zap.Duration("response_time", responseTime),
+			zap.Error(err),
+		)
+		return nil, fmt.Errorf("get recommendations API error: %w", err)
+	}
+
+	c.logger.Info("GetRecommendations completed successfully",
+		zap.String("endpoint", endpoint),
+		zap.String("media_type", mediaType),
+		zap.Int("id", id),
+		zap.Int("status_code", resp.StatusCode()),
+		zap.Duration("response_time", responseTime),
+		zap.Int("result_count", len(recommendationsResp.Results)),
+		zap.Int("total_results", recommendationsResp.TotalResults),
+	)
+
+	return &recommendationsResp, nil
+}

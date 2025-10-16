@@ -171,3 +171,113 @@ func TestSearchIntegration_Pagination(t *testing.T) {
 		assert.NotEqual(t, page1.Results[0].ID, page2.Results[0].ID, "Different pages should have different results")
 	}
 }
+
+// TestGetRecommendationsIntegration_InceptionMovie tests getting movie recommendations based on Inception
+func TestGetRecommendationsIntegration_InceptionMovie(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	// Get TMDB API Key from environment
+	apiKey := os.Getenv("TMDB_API_KEY")
+	if apiKey == "" {
+		t.Skip("TMDB_API_KEY environment variable not set, skipping integration test")
+	}
+
+	// Create TMDB client
+	logger := zap.NewNop()
+	cfg := config.TMDBConfig{
+		APIKey:    apiKey,
+		Language:  "en-US",
+		RateLimit: 40,
+	}
+	client := tmdb.NewClient(cfg, logger)
+
+	// Get movie recommendations based on Inception (ID: 27205)
+	ctx := context.Background()
+	results, err := client.GetMovieRecommendations(ctx, 27205, 1)
+
+	// Assertions
+	assert.NoError(t, err)
+	assert.NotNil(t, results)
+	assert.Greater(t, len(results.Results), 0, "Inception should have movie recommendations")
+
+	// Verify results have expected fields
+	for _, result := range results.Results {
+		assert.NotZero(t, result.ID, "Result should have ID")
+		assert.NotEmpty(t, result.Title, "Movie result should have title")
+		assert.NotZero(t, result.VoteAverage, "Result should have vote average")
+	}
+}
+
+// TestGetRecommendationsIntegration_BreakingBadTV tests getting TV recommendations based on Breaking Bad
+func TestGetRecommendationsIntegration_BreakingBadTV(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	// Get TMDB API Key from environment
+	apiKey := os.Getenv("TMDB_API_KEY")
+	if apiKey == "" {
+		t.Skip("TMDB_API_KEY environment variable not set, skipping integration test")
+	}
+
+	// Create TMDB client
+	logger := zap.NewNop()
+	cfg := config.TMDBConfig{
+		APIKey:    apiKey,
+		Language:  "en-US",
+		RateLimit: 40,
+	}
+	client := tmdb.NewClient(cfg, logger)
+
+	// Get TV recommendations based on Breaking Bad (ID: 1396)
+	ctx := context.Background()
+	results, err := client.GetTVRecommendations(ctx, 1396, 1)
+
+	// Assertions
+	assert.NoError(t, err)
+	assert.NotNil(t, results)
+	assert.Greater(t, len(results.Results), 0, "Breaking Bad should have TV recommendations")
+
+	// Verify results have expected fields
+	for _, result := range results.Results {
+		assert.NotZero(t, result.ID, "Result should have ID")
+		assert.NotEmpty(t, result.Name, "TV result should have name")
+		assert.NotZero(t, result.VoteAverage, "Result should have vote average")
+	}
+}
+
+// TestGetRecommendationsIntegration_NoRecommendations tests getting recommendations for content with no results
+// Note: TMDB may return recommendations even for very high IDs, so this test validates
+// that the API call succeeds without error, rather than asserting empty results
+func TestGetRecommendationsIntegration_NoRecommendations(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	// Get TMDB API Key from environment
+	apiKey := os.Getenv("TMDB_API_KEY")
+	if apiKey == "" {
+		t.Skip("TMDB_API_KEY environment variable not set, skipping integration test")
+	}
+
+	// Create TMDB client
+	logger := zap.NewNop()
+	cfg := config.TMDBConfig{
+		APIKey:    apiKey,
+		Language:  "en-US",
+		RateLimit: 40,
+	}
+	client := tmdb.NewClient(cfg, logger)
+
+	// Get recommendations for a very high movie ID (ID: 999999)
+	// Note: TMDB may still return recommendations via collaborative filtering
+	ctx := context.Background()
+	results, err := client.GetMovieRecommendations(ctx, 999999, 1)
+
+	// Assertions - should not return error, results may or may not be empty
+	assert.NoError(t, err, "Should not return error even if ID doesn't exist")
+	assert.NotNil(t, results, "Should return non-nil response")
+	// We don't assert empty results because TMDB may return recommendations anyway
+}
