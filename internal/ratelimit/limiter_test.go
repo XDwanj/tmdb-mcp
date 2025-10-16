@@ -8,6 +8,8 @@ import (
 	"github.com/XDwanj/tmdb-mcp/internal/config"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 // TestNewLimiter tests Limiter initialization
@@ -142,4 +144,90 @@ func TestLimiter_Wait_ConcurrentRequests(t *testing.T) {
 	}
 
 	// No panic or data race should occur (verified with go test -race)
+}
+
+// TestLimiter_WaitObservability tests rate limiter wait observability
+func TestLimiter_WaitObservability(t *testing.T) {
+	// 创建 observer logger 捕获日志
+	core, logs := observer.New(zapcore.DebugLevel)
+	logger := zap.New(core)
+
+	// 创建低速率限制器 (1 req/s)
+	cfg := config.TMDBConfig{
+		APIKey:    "test-key",
+		Language:  "en-US",
+		RateLimit: 1, // 1 request per 10 seconds
+	}
+	limiter := NewLimiter(cfg, logger)
+	ctx := context.Background()
+
+	// 第一次调用应该立即返回(使用 burst token)
+	err := limiter.Wait(ctx)
+	assert.NoError(t, err)
+
+	// 第二次调用应该等待,并记录 DEBUG 日志
+	err = limiter.Wait(ctx)
+	assert.NoError(t, err)
+
+	// 验证日志
+	debugLogs := logs.FilterMessage("Rate limiter wait completed").All()
+	assert.NotEmpty(t, debugLogs, "Should log DEBUG message for wait")
+
+	if len(debugLogs) > 0 {
+		// 验证日志级别
+		assert.Equal(t, zapcore.DebugLevel, debugLogs[0].Level, "Should be DEBUG level")
+
+		// 验证日志字段
+		fields := debugLogs[0].ContextMap()
+		assert.Contains(t, fields, "wait_duration", "Should include wait_duration field")
+		assert.Contains(t, fields, "rate_limit", "Should include rate_limit field")
+		assert.Contains(t, fields, "component", "Should include component field")
+
+		// 验证 wait_duration > 0
+		waitDuration, ok := fields["wait_duration"].(time.Duration)
+		assert.True(t, ok, "wait_duration should be time.Duration type")
+		assert.Greater(t, waitDuration, time.Duration(0), "wait_duration should be greater than 0")
+	}
+}
+
+// TestLimiter_WaitCancelled tests that Wait logs warning when cancelled
+func TestLimiter_WaitCancelled(t *testing.T) {
+	// 创建 observer logger 捕获日志
+	core, logs := observer.New(zapcore.DebugLevel)
+	logger := zap.New(core)
+
+	// 创建低速率限制器
+	cfg := config.TMDBConfig{
+		APIKey:    "test-key",
+		Language:  "en-US",
+		RateLimit: 1, // 1 request per 10 seconds
+	}
+	limiter := NewLimiter(cfg, logger)
+
+	// 耗尽 burst 容量
+	ctx := context.Background()
+	err := limiter.Wait(ctx)
+	assert.NoError(t, err)
+
+	// 创建会立即取消的 context
+	ctxCancel, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	// Wait 应该被取消并记录 WARN 日志
+	err = limiter.Wait(ctxCancel)
+	assert.Error(t, err, "Wait should return error when context is cancelled")
+
+	// 验证 WARN 日志
+	warnLogs := logs.FilterMessage("Rate limiter wait cancelled").All()
+	assert.NotEmpty(t, warnLogs, "Should log WARN message when wait is cancelled")
+
+	if len(warnLogs) > 0 {
+		// 验证日志级别
+		assert.Equal(t, zapcore.WarnLevel, warnLogs[0].Level, "Should be WARN level")
+
+		// 验证日志字段
+		fields := warnLogs[0].ContextMap()
+		assert.Contains(t, fields, "wait_duration", "Should include wait_duration field")
+		assert.Contains(t, fields, "component", "Should include component field")
+	}
 }

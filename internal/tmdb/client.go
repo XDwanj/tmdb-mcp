@@ -3,6 +3,7 @@ package tmdb
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -13,12 +14,23 @@ import (
 	"github.com/XDwanj/tmdb-mcp/pkg/version"
 )
 
+// contextKey is used for context values (避免 key 冲突)
+type contextKey string
+
+const (
+	// startTimeKey is the context key for request start time
+	startTimeKey contextKey = "request_start_time"
+)
+
 const (
 	// baseURL is the TMDB API v3 base URL
 	baseURL = "https://api.themoviedb.org/3"
 
 	// defaultTimeout is the default HTTP request timeout
 	defaultTimeout = 10 * time.Second
+
+	// performanceThreshold is the response time threshold for performance alerts
+	performanceThreshold = 1 * time.Second
 )
 
 // Client is the TMDB API client
@@ -28,6 +40,7 @@ type Client struct {
 	language    string
 	logger      *zap.Logger
 	rateLimiter *ratelimit.Limiter
+	callCounter *uint64 // API 调用计数器(指针以支持 atomic 操作)
 }
 
 // NewClient creates a new TMDB API client with configured Resty client
@@ -37,6 +50,9 @@ func NewClient(cfg config.TMDBConfig, logger *zap.Logger) *Client {
 
 	// Create rate limiter first (需要在 middleware 中使用)
 	rateLimiter := ratelimit.NewLimiter(cfg, logger)
+
+	// 初始化 API 调用计数器(在创建 httpClient 之前,以便在 middleware 中引用)
+	var counter uint64 = 0
 
 	// 创建 Resty 客户端
 	httpClient := resty.New().
@@ -62,8 +78,6 @@ func NewClient(cfg config.TMDBConfig, logger *zap.Logger) *Client {
 		// 统一处理请求开始日志和计时
 		OnBeforeRequest(func(c *resty.Client, req *resty.Request) error {
 			// 记录请求开始时间(存储在 context 中)
-			type contextKey string
-			const startTimeKey contextKey = "request_start_time"
 			ctx := context.WithValue(req.Context(), startTimeKey, time.Now())
 			req.SetContext(ctx)
 
@@ -76,9 +90,10 @@ func NewClient(cfg config.TMDBConfig, logger *zap.Logger) *Client {
 		}).
 		// 统一处理成功响应日志
 		OnAfterResponse(func(c *resty.Client, resp *resty.Response) error {
+			// 递增 API 调用计数器(线程安全)
+			atomic.AddUint64(&counter, 1)
+
 			// 从 context 获取开始时间
-			type contextKey string
-			const startTimeKey contextKey = "request_start_time"
 			responseTime := time.Duration(0)
 			if startTime, ok := resp.Request.Context().Value(startTimeKey).(time.Time); ok {
 				responseTime = time.Since(startTime)
@@ -91,14 +106,23 @@ func NewClient(cfg config.TMDBConfig, logger *zap.Logger) *Client {
 					zap.Int("status_code", resp.StatusCode()),
 					zap.Duration("response_time", responseTime),
 				)
+
+				// 性能阈值告警
+				if responseTime > performanceThreshold {
+					logger.Warn("TMDB API request exceeded performance threshold",
+						zap.String("method", resp.Request.Method),
+						zap.String("url", resp.Request.URL),
+						zap.Int("status_code", resp.StatusCode()),
+						zap.Duration("response_time", responseTime),
+						zap.Duration("threshold", performanceThreshold),
+					)
+				}
 			}
 			return nil
 		}).
 		// 统一处理错误响应日志
 		OnError(func(req *resty.Request, err error) {
 			// 从 context 获取开始时间
-			type contextKey string
-			const startTimeKey contextKey = "request_start_time"
 			responseTime := time.Duration(0)
 			if startTime, ok := req.Context().Value(startTimeKey).(time.Time); ok {
 				responseTime = time.Since(startTime)
@@ -159,7 +183,13 @@ func NewClient(cfg config.TMDBConfig, logger *zap.Logger) *Client {
 		language:    cfg.Language,
 		logger:      logger,
 		rateLimiter: rateLimiter,
+		callCounter: &counter,
 	}
+}
+
+// GetCallCount returns the current API call count (thread-safe)
+func (c *Client) GetCallCount() uint64 {
+	return atomic.LoadUint64(c.callCounter)
 }
 
 // Ping tests the TMDB API Key validity by calling the /configuration endpoint

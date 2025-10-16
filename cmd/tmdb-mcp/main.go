@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -56,12 +57,24 @@ func main() {
 	tmdbClient := tmdb.NewClient(cfg.TMDB, log)
 	log.Info("TMDB Client created")
 
-	// 验证 TMDB API Key 有效性
+	// 启动时性能基准测试: 验证 TMDB API Key 有效性并记录响应时间
+	log.Info("Running TMDB API baseline check...")
 	ctx := context.Background()
+	baselineStart := time.Now()
 	if err := tmdbClient.Ping(ctx); err != nil {
-		log.Fatal("TMDB API Key validation failed", zap.Error(err))
+		baselineTime := time.Since(baselineStart)
+		log.Error("TMDB API baseline check failed",
+			zap.Error(err),
+			zap.Duration("baseline_response_time", baselineTime),
+			zap.String("status", "failed"),
+		)
+		os.Exit(1)
 	}
-	log.Info("TMDB API Key validated successfully")
+	baselineTime := time.Since(baselineStart)
+	log.Info("TMDB API baseline check completed",
+		zap.Duration("baseline_response_time", baselineTime),
+		zap.String("status", "success"),
+	)
 
 	// 创建 MCP Server
 	mcpServer := mcp.NewServer(tmdbClient, log)

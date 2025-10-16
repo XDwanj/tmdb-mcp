@@ -49,18 +49,26 @@ func (l *Limiter) Wait(ctx context.Context) error {
 	start := time.Now()
 
 	// Wait for token from rate limiter (blocks if no tokens available)
-	if err := l.rateLimiter.Wait(ctx); err != nil {
-		return err
-	}
+	err := l.rateLimiter.Wait(ctx)
 
 	// Calculate wait time
 	elapsed := time.Since(start)
 
+	if err != nil {
+		// Log warning when wait is cancelled (e.g., context.Canceled)
+		l.logger.Warn("Rate limiter wait cancelled",
+			zap.Duration("wait_duration", elapsed),
+			zap.Error(err),
+			zap.String("component", "rate_limiter"),
+		)
+		return err
+	}
+
 	// Log only if we actually had to wait (avoid log noise)
 	// Use 1ms threshold to filter out instant returns
 	if elapsed > time.Millisecond {
-		l.logger.Debug("Rate limit wait",
-			zap.Duration("wait_time", elapsed),
+		l.logger.Debug("Rate limiter wait completed",
+			zap.Duration("wait_duration", elapsed),
 			zap.Int("rate_limit", l.rateLimit),
 			zap.String("component", "rate_limiter"),
 		)
