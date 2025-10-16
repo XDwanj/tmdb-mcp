@@ -108,26 +108,8 @@ func (c *Client) DiscoverMovies(ctx context.Context, params DiscoverMoviesParams
 
 		// 其他错误使用 handleError 处理
 		err := handleError(resp)
-		errorType := ErrorTypeUnknown
-		if tmdbErr, ok := err.(*TMDBError); ok {
-			errorType = tmdbErr.ErrorType
-		}
-
-		c.logger.Error("Discover movies API error",
-			zap.String("endpoint", endpoint),
-			zap.String("error_type", errorType),
-			zap.Int("status_code", statusCode),
-			zap.Error(err),
-		)
 		return nil, fmt.Errorf("discover movies API error: %w", err)
 	}
-
-	c.logger.Info("Movies discovered successfully",
-		zap.String("endpoint", endpoint),
-		zap.Int("status_code", resp.StatusCode()),
-		zap.Int("result_count", len(response.Results)),
-		zap.Int("total_results", response.TotalResults),
-	)
 
 	return &response, nil
 }
@@ -211,26 +193,8 @@ func (c *Client) DiscoverTV(ctx context.Context, params DiscoverTVParams) (*Disc
 
 		// 其他错误使用 handleError 处理
 		err := handleError(resp)
-		errorType := ErrorTypeUnknown
-		if tmdbErr, ok := err.(*TMDBError); ok {
-			errorType = tmdbErr.ErrorType
-		}
-
-		c.logger.Error("Discover TV shows API error",
-			zap.String("endpoint", endpoint),
-			zap.String("error_type", errorType),
-			zap.Int("status_code", statusCode),
-			zap.Error(err),
-		)
 		return nil, fmt.Errorf("discover TV shows API error: %w", err)
 	}
-
-	c.logger.Info("TV shows discovered successfully",
-		zap.String("endpoint", endpoint),
-		zap.Int("status_code", resp.StatusCode()),
-		zap.Int("result_count", len(response.Results)),
-		zap.Int("total_results", response.TotalResults),
-	)
 
 	return &response, nil
 }

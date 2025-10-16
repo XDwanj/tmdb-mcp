@@ -51,27 +51,8 @@ func (c *Client) GetMovieDetails(ctx context.Context, id int, language *string) 
 
 		// 其他错误使用 handleError 处理
 		err := handleError(resp)
-		errorType := ErrorTypeUnknown
-		if tmdbErr, ok := err.(*TMDBError); ok {
-			errorType = tmdbErr.ErrorType
-		}
-
-		c.logger.Error("Get movie details API error",
-			zap.String("endpoint", endpoint),
-			zap.Int("id", id),
-			zap.String("error_type", errorType),
-			zap.Int("status_code", statusCode),
-			zap.Error(err),
-		)
 		return nil, fmt.Errorf("get movie details API error: %w", err)
 	}
-
-	c.logger.Info("Movie details fetched successfully",
-		zap.String("endpoint", endpoint),
-		zap.Int("id", id),
-		zap.String("title", details.Title),
-		zap.Int("status_code", resp.StatusCode()),
-	)
 
 	return &details, nil
 }
@@ -120,27 +101,8 @@ func (c *Client) GetTVDetails(ctx context.Context, id int, language *string) (*T
 
 		// 其他错误使用 handleError 处理
 		err := handleError(resp)
-		errorType := ErrorTypeUnknown
-		if tmdbErr, ok := err.(*TMDBError); ok {
-			errorType = tmdbErr.ErrorType
-		}
-
-		c.logger.Error("Get TV details API error",
-			zap.String("endpoint", endpoint),
-			zap.Int("id", id),
-			zap.String("error_type", errorType),
-			zap.Int("status_code", statusCode),
-			zap.Error(err),
-		)
 		return nil, fmt.Errorf("get TV details API error: %w", err)
 	}
-
-	c.logger.Info("TV details fetched successfully",
-		zap.String("endpoint", endpoint),
-		zap.Int("id", id),
-		zap.String("name", details.Name),
-		zap.Int("status_code", resp.StatusCode()),
-	)
 
 	return &details, nil
 }
@@ -189,27 +151,8 @@ func (c *Client) GetPersonDetails(ctx context.Context, id int, language *string)
 
 		// 其他错误使用 handleError 处理
 		err := handleError(resp)
-		errorType := ErrorTypeUnknown
-		if tmdbErr, ok := err.(*TMDBError); ok {
-			errorType = tmdbErr.ErrorType
-		}
-
-		c.logger.Error("Get person details API error",
-			zap.String("endpoint", endpoint),
-			zap.Int("id", id),
-			zap.String("error_type", errorType),
-			zap.Int("status_code", statusCode),
-			zap.Error(err),
-		)
 		return nil, fmt.Errorf("get person details API error: %w", err)
 	}
-
-	c.logger.Info("Person details fetched successfully",
-		zap.String("endpoint", endpoint),
-		zap.Int("id", id),
-		zap.String("name", details.Name),
-		zap.Int("status_code", resp.StatusCode()),
-	)
 
 	return &details, nil
 }

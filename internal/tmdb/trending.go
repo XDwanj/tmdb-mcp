@@ -62,30 +62,8 @@ func (c *Client) GetTrending(ctx context.Context, mediaType, timeWindow string, 
 
 		// 其他错误使用 handleError 处理
 		err := handleError(resp)
-		errorType := ErrorTypeUnknown
-		if tmdbErr, ok := err.(*TMDBError); ok {
-			errorType = tmdbErr.ErrorType
-		}
-
-		c.logger.Error("GetTrending API error",
-			zap.String("endpoint", endpoint),
-			zap.String("media_type", mediaType),
-			zap.String("time_window", timeWindow),
-			zap.String("error_type", errorType),
-			zap.Int("status_code", statusCode),
-			zap.Error(err),
-		)
 		return nil, fmt.Errorf("get trending API error: %w", err)
 	}
-
-	c.logger.Info("GetTrending completed successfully",
-		zap.String("endpoint", endpoint),
-		zap.String("media_type", mediaType),
-		zap.String("time_window", timeWindow),
-		zap.Int("status_code", resp.StatusCode()),
-		zap.Int("result_count", len(trendingResp.Results)),
-		zap.Int("total_results", trendingResp.TotalResults),
-	)
 
 	return &trendingResp, nil
 }

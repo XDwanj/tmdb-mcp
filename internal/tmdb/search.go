@@ -73,28 +73,8 @@ func (c *Client) Search(ctx context.Context, query string, page int, language *s
 
 		// 其他错误使用 handleError 处理
 		err := handleError(resp)
-		errorType := ErrorTypeUnknown
-		if tmdbErr, ok := err.(*TMDBError); ok {
-			errorType = tmdbErr.ErrorType
-		}
-
-		c.logger.Error("Search API error",
-			zap.String("endpoint", endpoint),
-			zap.String("query", query),
-			zap.String("error_type", errorType),
-			zap.Int("status_code", statusCode),
-			zap.Error(err),
-		)
 		return nil, fmt.Errorf("search API error: %w", err)
 	}
-
-	c.logger.Info("Search completed successfully",
-		zap.String("endpoint", endpoint),
-		zap.String("query", query),
-		zap.Int("status_code", resp.StatusCode()),
-		zap.Int("result_count", len(searchResp.Results)),
-		zap.Int("total_results", searchResp.TotalResults),
-	)
 
 	return &searchResp, nil
 }
