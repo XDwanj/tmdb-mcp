@@ -115,6 +115,89 @@ httpClient := resty.New().
 [Source: docs/stories/1.4.rate-limiting-mechanism.md#Architecture Decision Record]
 
 
+## MCP Middleware 架构设计
+
+**实现模式**: 使用 MCP SDK `AddReceivingMiddleware()` 统一处理日志记录
+
+**背景问题**:
+- `internal/tools/` 下的 6+ 个工具文件中存在 20+ 处重复的日志记录代码
+- 每个工具的 `Handler()` 都包含相同的 "request received"、"failed"、"completed" 日志
+- 违反 DRY 原则，维护成本高，容易出现格式不一致
+
+**关键设计决策**：
+- **集中式拦截**: Middleware 在 `server.go` 的 `NewServer()` 中统一注册，拦截所有 MCP 工具调用
+- **分层日志**: 通用日志（请求/响应）由 middleware 处理，业务特定日志（如 "No movies found"）保留在工具层
+- **完整追踪**: 记录 method、session_id、tool name、arguments、duration、success/error 状态
+- **透明集成**: 工具代码无需显式调用日志，middleware 自动处理
+
+**实现示例**（`internal/mcp/middleware.go`）：
+```go
+func LoggingMiddleware(logger *zap.Logger) mcp.Middleware {
+    return func(next mcp.MethodHandler) mcp.MethodHandler {
+        return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+            // 1. 记录请求开始
+            logger.Info("MCP method started",
+                zap.String("method", method),
+                zap.String("session_id", req.GetSession().ID()),
+                zap.Bool("has_params", req.GetParams() != nil))
+
+            // 2. 对 CallToolRequest，记录工具名称和参数
+            if ctr, ok := req.(*mcp.CallToolRequest); ok {
+                logger.Info("Calling tool",
+                    zap.String("name", ctr.Params.Name),
+                    zap.Any("args", ctr.Params.Arguments))
+            }
+
+            // 3. 执行实际方法 + 计时
+            start := time.Now()
+            result, err := next(ctx, method, req)
+            duration := time.Since(start)
+
+            // 4. 记录结果（成功或失败）
+            if err != nil {
+                logger.Error("MCP method failed",
+                    zap.String("method", method),
+                    zap.Duration("duration", duration),
+                    zap.Error(err))
+            } else {
+                logger.Info("MCP method completed",
+                    zap.String("method", method),
+                    zap.Duration("duration", duration))
+            }
+
+            return result, err
+        }
+    }
+}
+```
+
+**注册方式**（`internal/mcp/server.go`）：
+```go
+mcpServer := mcp.NewServer(&mcp.Implementation{
+    Name:    "tmdb-mcp",
+    Version: "1.0.0",
+}, opts)
+
+// Add logging middleware (must be added before registering tools)
+mcpServer.AddReceivingMiddleware(LoggingMiddleware(logger))
+```
+
+**优势**：
+- ✅ **DRY 原则**: 消除了 6+ 个工具文件中的 20+ 处重复日志代码
+- ✅ **维护性**: 修改日志格式只需修改一处（middleware）
+- ✅ **一致性**: 所有 MCP 工具自动应用相同的日志格式和字段
+- ✅ **可观测性**: 统一记录 session_id、duration，便于追踪和性能监控
+- ✅ **关注点分离**: 工具层专注业务逻辑，横切关注点（日志）由 middleware 处理
+
+**对比项目现有实践**:
+本设计模式与项目中 TMDB HTTP Client 的 Resty middleware 一致：
+- HTTP Client 层：使用 `OnBeforeRequest` middleware 统一处理 rate limiting
+- MCP Server 层：使用 `AddReceivingMiddleware` 统一处理日志记录
+- 统一的 middleware 模式降低了开发人员的认知负担
+
+[Source: Official MCP SDK Middleware Example]
+
+
 ## 精简原则落地
 
 **不使用的工具/库**:

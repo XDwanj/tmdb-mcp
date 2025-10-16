@@ -38,15 +38,6 @@ func (t *DiscoverTVTool) Description() string {
 // business logic encapsulated in the DiscoverTVTool struct
 func (t *DiscoverTVTool) Handler() func(context.Context, *mcp.CallToolRequest, DiscoverTVParams) (*mcp.CallToolResult, any, error) {
 	return func(ctx context.Context, req *mcp.CallToolRequest, params DiscoverTVParams) (*mcp.CallToolResult, any, error) {
-		t.logger.Info("Discover TV shows request received",
-			zap.Stringp("with_genres", params.WithGenres),
-			zap.Intp("first_air_date_year", params.FirstAirDateYear),
-			zap.Float64p("vote_average_gte", params.VoteAverageGte),
-			zap.Float64p("vote_average_lte", params.VoteAverageLte),
-			zap.Stringp("with_status", params.WithStatus),
-			zap.Stringp("sort_by", params.SortBy),
-		)
-
 		// 转换 tools.DiscoverTVParams 到 tmdb.DiscoverTVParams
 		// 处理指针类型，零值使用默认值
 		tmdbParams := tmdb.DiscoverTVParams{}
@@ -82,9 +73,6 @@ func (t *DiscoverTVTool) Handler() func(context.Context, *mcp.CallToolRequest, D
 		// 调用 TMDB Client（参数验证在 Client 层完成）
 		result, err := t.tmdbClient.DiscoverTV(ctx, tmdbParams)
 		if err != nil {
-			t.logger.Error("Discover TV shows failed",
-				zap.Error(err),
-			)
 			return nil, nil, convertTMDBError(err, "TV shows")
 		}
 
@@ -103,11 +91,6 @@ func (t *DiscoverTVTool) Handler() func(context.Context, *mcp.CallToolRequest, D
 				TotalResults: 0,
 			}, nil
 		}
-
-		t.logger.Info("Discover TV shows completed",
-			zap.Int("count", len(result.Results)),
-			zap.Int("total_results", result.TotalResults),
-		)
 
 		// 返回空的 CallToolResult 和结构化响应
 		return &mcp.CallToolResult{}, result, nil

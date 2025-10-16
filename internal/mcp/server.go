@@ -29,6 +29,9 @@ func NewServer(tmdbClient *tmdb.Client, logger *zap.Logger) *Server {
 		Version: "1.0.0",
 	}, opts)
 
+	// Add logging middleware (must be added before registering tools)
+	mcpServer.AddReceivingMiddleware(LoggingMiddleware(logger))
+
 	// Create and register search tool
 	searchTool := tools.NewSearchTool(tmdbClient, logger)
 	mcp.AddTool(mcpServer, &mcp.Tool{

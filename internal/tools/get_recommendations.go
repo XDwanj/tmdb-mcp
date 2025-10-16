@@ -54,12 +54,6 @@ func (t *GetRecommendationsTool) Handler() func(context.Context, *mcp.CallToolRe
 			page = *params.Page
 		}
 
-		t.logger.Info("GetRecommendations request received",
-			zap.String("media_type", params.MediaType),
-			zap.Int("id", params.ID),
-			zap.Int("page", page),
-		)
-
 		// Call appropriate TMDB Client method based on media type
 		var results *tmdb.RecommendationsResponse
 		var err error
@@ -74,19 +68,8 @@ func (t *GetRecommendationsTool) Handler() func(context.Context, *mcp.CallToolRe
 		}
 
 		if err != nil {
-			t.logger.Error("GetRecommendations failed",
-				zap.Error(err),
-				zap.String("media_type", params.MediaType),
-				zap.Int("id", params.ID),
-			)
 			return nil, GetRecommendationsResponse{}, convertTMDBError(err, "content")
 		}
-
-		t.logger.Info("GetRecommendations completed",
-			zap.String("media_type", params.MediaType),
-			zap.Int("id", params.ID),
-			zap.Int("results", len(results.Results)),
-		)
 
 		// Return empty result metadata and structured response
 		return &mcp.CallToolResult{}, GetRecommendationsResponse{Results: results.Results}, nil

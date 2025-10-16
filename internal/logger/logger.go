@@ -19,6 +19,7 @@ func InitLogger(cfg config.LogConfig) (*zap.Logger, error) {
 
 	// Use development mode for debug level, production mode for others
 	var logger *zap.Logger
+	zap.AddCaller()
 	if cfg.Level == "debug" {
 		// Development mode: console output with color
 		logger, err = zap.NewDevelopment()

@@ -38,14 +38,6 @@ func (t *DiscoverMoviesTool) Description() string {
 // business logic encapsulated in the DiscoverMoviesTool struct
 func (t *DiscoverMoviesTool) Handler() func(context.Context, *mcp.CallToolRequest, DiscoverMoviesParams) (*mcp.CallToolResult, any, error) {
 	return func(ctx context.Context, req *mcp.CallToolRequest, params DiscoverMoviesParams) (*mcp.CallToolResult, any, error) {
-		t.logger.Info("Discover movies request received",
-			zap.Stringp("with_genres", params.WithGenres),
-			zap.Intp("primary_release_year", params.PrimaryReleaseYear),
-			zap.Float64p("vote_average_gte", params.VoteAverageGte),
-			zap.Float64p("vote_average_lte", params.VoteAverageLte),
-			zap.Stringp("sort_by", params.SortBy),
-		)
-
 		// 转换 tools.DiscoverMoviesParams 到 tmdb.DiscoverMoviesParams
 		// 处理指针类型，零值使用默认值
 		tmdbParams := tmdb.DiscoverMoviesParams{}
@@ -78,9 +70,6 @@ func (t *DiscoverMoviesTool) Handler() func(context.Context, *mcp.CallToolReques
 		// 调用 TMDB Client（参数验证在 Client 层完成）
 		result, err := t.tmdbClient.DiscoverMovies(ctx, tmdbParams)
 		if err != nil {
-			t.logger.Error("Discover movies failed",
-				zap.Error(err),
-			)
 			return nil, nil, convertTMDBError(err, "movies")
 		}
 
@@ -99,11 +88,6 @@ func (t *DiscoverMoviesTool) Handler() func(context.Context, *mcp.CallToolReques
 				TotalResults: 0,
 			}, nil
 		}
-
-		t.logger.Info("Discover movies completed",
-			zap.Int("count", len(result.Results)),
-			zap.Int("total_results", result.TotalResults),
-		)
 
 		// 返回空的 CallToolResult 和结构化响应
 		return &mcp.CallToolResult{}, result, nil

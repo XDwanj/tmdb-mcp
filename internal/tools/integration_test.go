@@ -1262,7 +1262,3 @@ func TestErrorScenario_NonExistentID(t *testing.T) {
 
 	t.Log("Non-existent ID handled correctly (returns nil without error)")
 }
-
-
-
-

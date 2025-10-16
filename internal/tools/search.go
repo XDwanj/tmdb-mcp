@@ -42,25 +42,11 @@ func (t *SearchTool) Handler() func(context.Context, *mcp.CallToolRequest, Searc
 			params.Page = 1
 		}
 
-		t.logger.Info("Search request received",
-			zap.String("query", params.Query),
-			zap.Int("page", params.Page),
-		)
-
 		// Call TMDB Client (validation is done in the client layer)
 		results, err := t.tmdbClient.Search(ctx, params.Query, params.Page, params.Language)
 		if err != nil {
-			t.logger.Error("Search failed",
-				zap.Error(err),
-				zap.String("query", params.Query),
-			)
 			return nil, SearchResponse{}, convertTMDBError(err, "content")
 		}
-
-		t.logger.Info("Search completed",
-			zap.String("query", params.Query),
-			zap.Int("results", len(results.Results)),
-		)
 
 		// Return empty result metadata and structured response
 		return &mcp.CallToolResult{}, SearchResponse{Results: results.Results}, nil

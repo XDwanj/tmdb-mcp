@@ -54,28 +54,11 @@ func (t *GetTrendingTool) Handler() func(context.Context, *mcp.CallToolRequest, 
 			page = *params.Page
 		}
 
-		t.logger.Info("GetTrending request received",
-			zap.String("media_type", params.MediaType),
-			zap.String("time_window", params.TimeWindow),
-			zap.Int("page", page),
-		)
-
 		// Call TMDB Client (validation is done in the client layer)
 		results, err := t.tmdbClient.GetTrending(ctx, params.MediaType, params.TimeWindow, page)
 		if err != nil {
-			t.logger.Error("GetTrending failed",
-				zap.Error(err),
-				zap.String("media_type", params.MediaType),
-				zap.String("time_window", params.TimeWindow),
-			)
 			return nil, GetTrendingResponse{}, convertTMDBError(err, "content")
 		}
-
-		t.logger.Info("GetTrending completed",
-			zap.String("media_type", params.MediaType),
-			zap.String("time_window", params.TimeWindow),
-			zap.Int("results", len(results.Results)),
-		)
 
 		// Return empty result metadata and structured response
 		return &mcp.CallToolResult{}, GetTrendingResponse{Results: results.Results}, nil
