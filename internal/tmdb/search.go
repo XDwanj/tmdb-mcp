@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"go.uber.org/zap"
 )
@@ -16,8 +15,6 @@ const (
 
 // Search searches for movies, TV shows, and people using a query string
 func (c *Client) Search(ctx context.Context, query string, page int, language *string) (*SearchResponse, error) {
-	// 记录请求开始时间
-	startTime := time.Now()
 	endpoint := "/search/multi"
 
 	// 验证 query 参数
@@ -35,12 +32,6 @@ func (c *Client) Search(ctx context.Context, query string, page int, language *s
 		page = 1
 	}
 
-	c.logger.Debug("Starting TMDB API request",
-		zap.String("endpoint", endpoint),
-		zap.String("query", query),
-		zap.Int("page", page),
-	)
-
 	// Rate limiting is handled by OnBeforeRequest middleware
 	// 调用 TMDB API /search/multi 端点
 	var searchResp SearchResponse
@@ -56,16 +47,8 @@ func (c *Client) Search(ctx context.Context, query string, page int, language *s
 	}
 
 	resp, err := req.Get(endpoint)
-	responseTime := time.Since(startTime)
 
 	if err != nil {
-		c.logger.Error("Search failed",
-			zap.String("endpoint", endpoint),
-			zap.String("query", query),
-			zap.String("error_type", ErrorTypeNetwork),
-			zap.Duration("response_time", responseTime),
-			zap.Error(err),
-		)
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
 
@@ -79,7 +62,6 @@ func (c *Client) Search(ctx context.Context, query string, page int, language *s
 				zap.String("endpoint", endpoint),
 				zap.String("query", query),
 				zap.Int("status_code", statusCode),
-				zap.Duration("response_time", responseTime),
 			)
 			return &SearchResponse{
 				Page:         page,
@@ -101,7 +83,6 @@ func (c *Client) Search(ctx context.Context, query string, page int, language *s
 			zap.String("query", query),
 			zap.String("error_type", errorType),
 			zap.Int("status_code", statusCode),
-			zap.Duration("response_time", responseTime),
 			zap.Error(err),
 		)
 		return nil, fmt.Errorf("search API error: %w", err)
@@ -111,7 +92,6 @@ func (c *Client) Search(ctx context.Context, query string, page int, language *s
 		zap.String("endpoint", endpoint),
 		zap.String("query", query),
 		zap.Int("status_code", resp.StatusCode()),
-		zap.Duration("response_time", responseTime),
 		zap.Int("result_count", len(searchResp.Results)),
 		zap.Int("total_results", searchResp.TotalResults),
 	)

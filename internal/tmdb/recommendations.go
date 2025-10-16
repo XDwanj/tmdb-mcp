@@ -3,7 +3,6 @@ package tmdb
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"go.uber.org/zap"
 )
@@ -46,16 +45,6 @@ func (c *Client) GetTVRecommendations(ctx context.Context, id int, page int) (*R
 
 // getRecommendations is a shared helper method for getting recommendations
 func (c *Client) getRecommendations(ctx context.Context, endpoint, mediaType string, id, page int) (*RecommendationsResponse, error) {
-	// 记录请求开始时间
-	startTime := time.Now()
-
-	c.logger.Debug("Starting TMDB API request",
-		zap.String("endpoint", endpoint),
-		zap.String("media_type", mediaType),
-		zap.Int("id", id),
-		zap.Int("page", page),
-	)
-
 	// Rate limiting is handled by OnBeforeRequest middleware
 	// 调用 TMDB API /movie/{id}/recommendations 或 /tv/{id}/recommendations 端点
 	var recommendationsResp RecommendationsResponse
@@ -64,17 +53,8 @@ func (c *Client) getRecommendations(ctx context.Context, endpoint, mediaType str
 		SetQueryParam("page", fmt.Sprintf("%d", page)).
 		SetResult(&recommendationsResp).
 		Get(endpoint)
-	responseTime := time.Since(startTime)
 
 	if err != nil {
-		c.logger.Error("GetRecommendations failed",
-			zap.String("endpoint", endpoint),
-			zap.String("media_type", mediaType),
-			zap.Int("id", id),
-			zap.String("error_type", ErrorTypeNetwork),
-			zap.Duration("response_time", responseTime),
-			zap.Error(err),
-		)
 		return nil, fmt.Errorf("get recommendations failed: %w", err)
 	}
 
@@ -89,7 +69,6 @@ func (c *Client) getRecommendations(ctx context.Context, endpoint, mediaType str
 				zap.String("media_type", mediaType),
 				zap.Int("id", id),
 				zap.Int("status_code", statusCode),
-				zap.Duration("response_time", responseTime),
 			)
 			return &RecommendationsResponse{
 				Page:         page,
@@ -112,7 +91,6 @@ func (c *Client) getRecommendations(ctx context.Context, endpoint, mediaType str
 			zap.Int("id", id),
 			zap.String("error_type", errorType),
 			zap.Int("status_code", statusCode),
-			zap.Duration("response_time", responseTime),
 			zap.Error(err),
 		)
 		return nil, fmt.Errorf("get recommendations API error: %w", err)
@@ -123,7 +101,6 @@ func (c *Client) getRecommendations(ctx context.Context, endpoint, mediaType str
 		zap.String("media_type", mediaType),
 		zap.Int("id", id),
 		zap.Int("status_code", resp.StatusCode()),
-		zap.Duration("response_time", responseTime),
 		zap.Int("result_count", len(recommendationsResp.Results)),
 		zap.Int("total_results", recommendationsResp.TotalResults),
 	)

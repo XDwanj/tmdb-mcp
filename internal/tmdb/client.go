@@ -59,6 +59,58 @@ func NewClient(cfg config.TMDBConfig, logger *zap.Logger) *Client {
 			}
 			return nil
 		}).
+		// 统一处理请求开始日志和计时
+		OnBeforeRequest(func(c *resty.Client, req *resty.Request) error {
+			// 记录请求开始时间(存储在 context 中)
+			type contextKey string
+			const startTimeKey contextKey = "request_start_time"
+			ctx := context.WithValue(req.Context(), startTimeKey, time.Now())
+			req.SetContext(ctx)
+
+			// 记录请求开始日志
+			logger.Debug("Starting TMDB API request",
+				zap.String("method", req.Method),
+				zap.String("url", req.URL),
+			)
+			return nil
+		}).
+		// 统一处理成功响应日志
+		OnAfterResponse(func(c *resty.Client, resp *resty.Response) error {
+			// 从 context 获取开始时间
+			type contextKey string
+			const startTimeKey contextKey = "request_start_time"
+			responseTime := time.Duration(0)
+			if startTime, ok := resp.Request.Context().Value(startTimeKey).(time.Time); ok {
+				responseTime = time.Since(startTime)
+			}
+
+			if resp.IsSuccess() {
+				logger.Info("TMDB API request succeeded",
+					zap.String("method", resp.Request.Method),
+					zap.String("url", resp.Request.URL),
+					zap.Int("status_code", resp.StatusCode()),
+					zap.Duration("response_time", responseTime),
+				)
+			}
+			return nil
+		}).
+		// 统一处理错误响应日志
+		OnError(func(req *resty.Request, err error) {
+			// 从 context 获取开始时间
+			type contextKey string
+			const startTimeKey contextKey = "request_start_time"
+			responseTime := time.Duration(0)
+			if startTime, ok := req.Context().Value(startTimeKey).(time.Time); ok {
+				responseTime = time.Since(startTime)
+			}
+
+			logger.Error("TMDB API request failed",
+				zap.String("method", req.Method),
+				zap.String("url", req.URL),
+				zap.Duration("response_time", responseTime),
+				zap.Error(err),
+			)
+		}).
 		// 配置重试机制
 		SetRetryCount(3).
 		SetRetryWaitTime(1 * time.Second).

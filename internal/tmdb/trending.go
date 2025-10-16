@@ -3,16 +3,12 @@ package tmdb
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"go.uber.org/zap"
 )
 
 // GetTrending gets trending movies, TV shows, or people for a specific time window
 func (c *Client) GetTrending(ctx context.Context, mediaType, timeWindow string, page int) (*TrendingResponse, error) {
-	// 记录请求开始时间
-	startTime := time.Now()
-
 	// 验证 mediaType 参数
 	if mediaType != "movie" && mediaType != "tv" && mediaType != "person" {
 		return nil, fmt.Errorf("invalid media_type: %s, must be movie, tv, or person", mediaType)
@@ -31,13 +27,6 @@ func (c *Client) GetTrending(ctx context.Context, mediaType, timeWindow string, 
 	// 构建端点路径
 	endpoint := fmt.Sprintf("/trending/%s/%s", mediaType, timeWindow)
 
-	c.logger.Debug("Starting TMDB API request",
-		zap.String("endpoint", endpoint),
-		zap.String("media_type", mediaType),
-		zap.String("time_window", timeWindow),
-		zap.Int("page", page),
-	)
-
 	// Rate limiting is handled by OnBeforeRequest middleware
 	// 调用 TMDB API /trending/{media_type}/{time_window} 端点
 	var trendingResp TrendingResponse
@@ -46,17 +35,8 @@ func (c *Client) GetTrending(ctx context.Context, mediaType, timeWindow string, 
 		SetQueryParam("page", fmt.Sprintf("%d", page)).
 		SetResult(&trendingResp).
 		Get(endpoint)
-	responseTime := time.Since(startTime)
 
 	if err != nil {
-		c.logger.Error("GetTrending failed",
-			zap.String("endpoint", endpoint),
-			zap.String("media_type", mediaType),
-			zap.String("time_window", timeWindow),
-			zap.String("error_type", ErrorTypeNetwork),
-			zap.Duration("response_time", responseTime),
-			zap.Error(err),
-		)
 		return nil, fmt.Errorf("get trending failed: %w", err)
 	}
 
@@ -71,7 +51,6 @@ func (c *Client) GetTrending(ctx context.Context, mediaType, timeWindow string, 
 				zap.String("media_type", mediaType),
 				zap.String("time_window", timeWindow),
 				zap.Int("status_code", statusCode),
-				zap.Duration("response_time", responseTime),
 			)
 			return &TrendingResponse{
 				Page:         page,
@@ -94,7 +73,6 @@ func (c *Client) GetTrending(ctx context.Context, mediaType, timeWindow string, 
 			zap.String("time_window", timeWindow),
 			zap.String("error_type", errorType),
 			zap.Int("status_code", statusCode),
-			zap.Duration("response_time", responseTime),
 			zap.Error(err),
 		)
 		return nil, fmt.Errorf("get trending API error: %w", err)
@@ -105,7 +83,6 @@ func (c *Client) GetTrending(ctx context.Context, mediaType, timeWindow string, 
 		zap.String("media_type", mediaType),
 		zap.String("time_window", timeWindow),
 		zap.Int("status_code", resp.StatusCode()),
-		zap.Duration("response_time", responseTime),
 		zap.Int("result_count", len(trendingResp.Results)),
 		zap.Int("total_results", trendingResp.TotalResults),
 	)
