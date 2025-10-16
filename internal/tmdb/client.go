@@ -35,16 +35,25 @@ func NewClient(cfg config.TMDBConfig, logger *zap.Logger) *Client {
 	// 构建 User-Agent
 	userAgent := fmt.Sprintf("tmdb-mcp/%s", version.Version)
 
+	// Create rate limiter first (需要在 middleware 中使用)
+	rateLimiter := ratelimit.NewLimiter(cfg, logger)
+
 	// 创建 Resty 客户端
 	httpClient := resty.New().
 		SetBaseURL(baseURL).
 		SetTimeout(defaultTimeout).
 		SetHeader("User-Agent", userAgent).
 		OnBeforeRequest(func(c *resty.Client, req *resty.Request) error {
-			// 自动添加 API Key
+			// 1. 统一处理 rate limiting (阻塞等待)
+			if err := rateLimiter.Wait(req.Context()); err != nil {
+				logger.Error("rate limit wait failed", zap.Error(err))
+				return fmt.Errorf("rate limit wait failed: %w", err)
+			}
+
+			// 2. 自动添加 API Key
 			req.SetQueryParam("api_key", cfg.APIKey)
 
-			// language 参数仅在请求中未显式设置时使用配置默认值
+			// 3. language 参数仅在请求中未显式设置时使用配置默认值
 			if req.QueryParam.Get("language") == "" && cfg.Language != "" {
 				req.SetQueryParam("language", cfg.Language)
 			}
@@ -88,9 +97,6 @@ func NewClient(cfg config.TMDBConfig, logger *zap.Logger) *Client {
 		zap.Int("retry_count", 3),
 	)
 
-	// Create rate limiter
-	rateLimiter := ratelimit.NewLimiter(cfg, logger)
-
 	logger.Debug("Rate Limiter integrated to TMDB Client",
 		zap.String("component", "tmdb_client"),
 	)
@@ -106,12 +112,7 @@ func NewClient(cfg config.TMDBConfig, logger *zap.Logger) *Client {
 
 // Ping tests the TMDB API Key validity by calling the /configuration endpoint
 func (c *Client) Ping(ctx context.Context) error {
-	// Wait for rate limit
-	if err := c.rateLimiter.Wait(ctx); err != nil {
-		c.logger.Error("rate limit wait failed", zap.Error(err))
-		return fmt.Errorf("rate limit wait failed: %w", err)
-	}
-
+	// Rate limiting is handled by OnBeforeRequest middleware
 	resp, err := c.httpClient.R().
 		SetContext(ctx).
 		Get("/configuration")

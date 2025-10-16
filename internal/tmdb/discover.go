@@ -65,12 +65,7 @@ func (c *Client) DiscoverMovies(ctx context.Context, params DiscoverMoviesParams
 		zap.Int("page", params.Page),
 	)
 
-	// 等待速率限制
-	if err := c.rateLimiter.Wait(ctx); err != nil {
-		c.logger.Error("rate limit wait failed", zap.Error(err))
-		return nil, fmt.Errorf("rate limit wait failed: %w", err)
-	}
-
+	// Rate limiting is handled by OnBeforeRequest middleware
 	// 构建请求
 	req := c.httpClient.R().
 		SetContext(ctx).
@@ -193,12 +188,7 @@ func (c *Client) DiscoverTV(ctx context.Context, params DiscoverTVParams) (*Disc
 		zap.Int("page", params.Page),
 	)
 
-	// 等待速率限制
-	if err := c.rateLimiter.Wait(ctx); err != nil {
-		c.logger.Error("rate limit wait failed", zap.Error(err))
-		return nil, fmt.Errorf("rate limit wait failed: %w", err)
-	}
-
+	// Rate limiting is handled by OnBeforeRequest middleware
 	// 构建请求
 	req := c.httpClient.R().
 		SetContext(ctx).

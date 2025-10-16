@@ -38,12 +38,7 @@ func (c *Client) GetTrending(ctx context.Context, mediaType, timeWindow string, 
 		zap.Int("page", page),
 	)
 
-	// Wait for rate limit
-	if err := c.rateLimiter.Wait(ctx); err != nil {
-		c.logger.Error("rate limit wait failed", zap.Error(err))
-		return nil, fmt.Errorf("rate limit wait failed: %w", err)
-	}
-
+	// Rate limiting is handled by OnBeforeRequest middleware
 	// 调用 TMDB API /trending/{media_type}/{time_window} 端点
 	var trendingResp TrendingResponse
 	resp, err := c.httpClient.R().

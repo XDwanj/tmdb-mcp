@@ -56,7 +56,7 @@
 **3. 为什么选择 Resty 而非标准库 `net/http` 客户端？**
 - **链式 API**: 更简洁的代码风格（`client.R().SetQueryParam().Get()`）
 - **自动重试**: 内置重试逻辑，处理 TMDB API 临时故障
-- **中间件支持**: 方便统一添加日志、指标记录
+- **中间件支持**: 方便统一添加日志、指标记录，**支持 OnBeforeRequest 统一处理 rate limiting**
 - **超时控制**: 更好的超时和取消控制
 
 **4. 为什么选择 Viper 配置管理？**
@@ -73,6 +73,47 @@
 - **实时性要求**: PRD 明确要求实时数据，避免过期内容
 - **MVP 范围**: 第一版聚焦核心功能，缓存属于优化范畴
 - **TMDB 速率限制**: 40 req/10s 足够支持单用户场景，无需缓存
+
+## Rate Limiting 架构设计
+
+**实现模式**: 使用 Resty `OnBeforeRequest` middleware 统一处理
+
+**关键设计决策**：
+- **集中式处理**: Rate limiting 在 `client.go` 的 `OnBeforeRequest` 中统一处理，避免在每个 API 方法中重复代码
+- **阻塞式等待**: 使用 `rateLimiter.Wait(ctx)` 而非 `Allow()` 模式，提供更好的用户体验
+- **Context 支持**: 尊重 context 取消和超时，防止资源泄漏
+- **透明集成**: API 方法无需显式调用 rate limiting，middleware 自动处理
+
+**实现示例**（`internal/tmdb/client.go`）：
+```go
+httpClient := resty.New().
+    SetBaseURL(baseURL).
+    OnBeforeRequest(func(c *resty.Client, req *resty.Request) error {
+        // 1. 统一处理 rate limiting (阻塞等待)
+        if err := rateLimiter.Wait(req.Context()); err != nil {
+            logger.Error("rate limit wait failed", zap.Error(err))
+            return fmt.Errorf("rate limit wait failed: %w", err)
+        }
+
+        // 2. 自动添加 API Key
+        req.SetQueryParam("api_key", cfg.APIKey)
+
+        // 3. language 参数仅在请求中未显式设置时使用配置默认值
+        if req.QueryParam.Get("language") == "" && cfg.Language != "" {
+            req.SetQueryParam("language", cfg.Language)
+        }
+        return nil
+    })
+```
+
+**优势**：
+- ✅ **DRY 原则**: 消除了 6+ 个 API 方法中的重复代码
+- ✅ **维护性**: 修改 rate limiting 逻辑只需修改一处
+- ✅ **一致性**: 所有 API 调用自动应用相同的 rate limiting 策略
+- ✅ **可观测性**: `Wait(ctx)` 允许记录实际等待时间，便于监控
+
+[Source: docs/stories/1.4.rate-limiting-mechanism.md#Architecture Decision Record]
+
 
 ## 精简原则落地
 

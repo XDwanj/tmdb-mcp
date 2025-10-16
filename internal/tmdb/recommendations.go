@@ -56,12 +56,7 @@ func (c *Client) getRecommendations(ctx context.Context, endpoint, mediaType str
 		zap.Int("page", page),
 	)
 
-	// Wait for rate limit
-	if err := c.rateLimiter.Wait(ctx); err != nil {
-		c.logger.Error("rate limit wait failed", zap.Error(err))
-		return nil, fmt.Errorf("rate limit wait failed: %w", err)
-	}
-
+	// Rate limiting is handled by OnBeforeRequest middleware
 	// 调用 TMDB API /movie/{id}/recommendations 或 /tv/{id}/recommendations 端点
 	var recommendationsResp RecommendationsResponse
 	resp, err := c.httpClient.R().

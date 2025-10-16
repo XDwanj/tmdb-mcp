@@ -24,12 +24,7 @@ func (c *Client) GetMovieDetails(ctx context.Context, id int, language *string) 
 		zap.Int("id", id),
 	)
 
-	// 等待速率限制
-	if err := c.rateLimiter.Wait(ctx); err != nil {
-		c.logger.Error("rate limit wait failed", zap.Error(err))
-		return nil, fmt.Errorf("rate limit wait failed: %w", err)
-	}
-
+	// Rate limiting is handled by OnBeforeRequest middleware
 	// 调用 TMDB API /movie/{id} 端点
 	var details MovieDetails
 	req := c.httpClient.R().
@@ -116,12 +111,7 @@ func (c *Client) GetTVDetails(ctx context.Context, id int, language *string) (*T
 		zap.Int("id", id),
 	)
 
-	// 等待速率限制
-	if err := c.rateLimiter.Wait(ctx); err != nil {
-		c.logger.Error("rate limit wait failed", zap.Error(err))
-		return nil, fmt.Errorf("rate limit wait failed: %w", err)
-	}
-
+	// Rate limiting is handled by OnBeforeRequest middleware
 	// 调用 TMDB API /tv/{id} 端点
 	var details TVDetails
 	req := c.httpClient.R().
@@ -208,12 +198,7 @@ func (c *Client) GetPersonDetails(ctx context.Context, id int, language *string)
 		zap.Int("id", id),
 	)
 
-	// 等待速率限制
-	if err := c.rateLimiter.Wait(ctx); err != nil {
-		c.logger.Error("rate limit wait failed", zap.Error(err))
-		return nil, fmt.Errorf("rate limit wait failed: %w", err)
-	}
-
+	// Rate limiting is handled by OnBeforeRequest middleware
 	// 调用 TMDB API /person/{id} 端点
 	var details PersonDetails
 	req := c.httpClient.R().
