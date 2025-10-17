@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/XDwanj/tmdb-mcp/internal/tmdb"
 	"github.com/XDwanj/tmdb-mcp/internal/tools"
@@ -85,4 +86,17 @@ func NewServer(tmdbClient *tmdb.Client, logger *zap.Logger) *Server {
 func (s *Server) Run(ctx context.Context, transport mcp.Transport) error {
 	s.logger.Info("Starting MCP server")
 	return s.mcpServer.Run(ctx, transport)
+}
+
+// GetSSEHandler returns an HTTP handler for SSE connections
+// This handler uses the MCP SDK's built-in SSE support to handle
+// MCP protocol over Server-Sent Events
+func (s *Server) GetSSEHandler() http.Handler {
+	// Use MCP SDK's NewSSEHandler with a factory function
+	// that returns our MCP server instance for each request
+	return mcp.NewSSEHandler(func(r *http.Request) *mcp.Server {
+		// Return the MCP server instance
+		// The SDK will use this server to handle MCP requests via SSE
+		return s.mcpServer
+	}, nil) // nil for default SSEOptions
 }

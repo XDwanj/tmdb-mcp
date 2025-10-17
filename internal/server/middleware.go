@@ -155,3 +155,34 @@ func compareTokens(provided, expected string) bool {
 	// Requires equal length inputs, otherwise returns 0
 	return subtle.ConstantTimeCompare(providedBytes, expectedBytes) == 1
 }
+
+// ConnectionTrackingMiddleware tracks active SSE connections
+func ConnectionTrackingMiddleware(s *HTTPServer) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Increment counter when connection is established
+			count := s.activeConnections.Add(1)
+			start := time.Now()
+
+			s.logger.Info("SSE connection established",
+				zap.String("remote_addr", r.RemoteAddr),
+				zap.Int32("active_connections", count),
+			)
+
+			// Ensure decrement on connection close
+			defer func() {
+				count := s.activeConnections.Add(-1)
+				duration := time.Since(start)
+
+				s.logger.Info("SSE connection closed",
+					zap.String("remote_addr", r.RemoteAddr),
+					zap.Duration("duration", duration),
+					zap.Int32("active_connections", count),
+				)
+			}()
+
+			// Call next handler
+			next.ServeHTTP(w, r)
+		})
+	}
+}

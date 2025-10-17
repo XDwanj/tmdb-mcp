@@ -13,6 +13,7 @@ import (
 	"github.com/XDwanj/tmdb-mcp/internal/config"
 	"github.com/XDwanj/tmdb-mcp/internal/logger"
 	"github.com/XDwanj/tmdb-mcp/internal/mcp"
+	"github.com/XDwanj/tmdb-mcp/internal/server"
 	"github.com/XDwanj/tmdb-mcp/internal/tmdb"
 	"github.com/XDwanj/tmdb-mcp/pkg/version"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -106,15 +107,33 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	// 启动 MCP Server（在 goroutine 中）
+	// 根据配置的 mode 启动相应的服务器
 	errChan := make(chan error, 1)
-	go func() {
-		log.Info("Starting MCP Server in stdio mode")
-		transport := &mcpsdk.StdioTransport{}
-		if err := mcpServer.Run(ctx, transport); err != nil {
-			errChan <- err
-		}
-	}()
+
+	// 启动 stdio 模式（如果需要）
+	if cfg.Server.Mode == "stdio" || cfg.Server.Mode == "both" {
+		go func() {
+			log.Info("Starting MCP Server in stdio mode")
+			transport := &mcpsdk.StdioTransport{}
+			if err := mcpServer.Run(ctx, transport); err != nil {
+				errChan <- err
+			}
+		}()
+	}
+
+	// 启动 SSE 模式（如果需要）
+	var httpServer *server.HTTPServer
+	if cfg.Server.Mode == "sse" || cfg.Server.Mode == "both" {
+		httpServer = server.NewHTTPServer(cfg, mcpServer, log)
+		go func() {
+			log.Info("Starting HTTP Server for SSE mode",
+				zap.String("addr", fmt.Sprintf("%s:%d", cfg.Server.SSE.Host, cfg.Server.SSE.Port)),
+			)
+			if err := httpServer.Start(); err != nil {
+				errChan <- fmt.Errorf("HTTP server failed: %w", err)
+			}
+		}()
+	}
 
 	// 等待信号或错误
 	select {
@@ -122,8 +141,18 @@ func main() {
 		log.Info("Received shutdown signal")
 		cancel()
 	case err := <-errChan:
-		log.Error("MCP Server failed", zap.Error(err))
+		log.Error("Server failed", zap.Error(err))
 		cancel()
+	}
+
+	// 优雅退出 HTTP Server（如果运行中）
+	if httpServer != nil {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer shutdownCancel()
+
+		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			log.Error("HTTP server shutdown failed", zap.Error(err))
+		}
 	}
 
 	// 优雅退出

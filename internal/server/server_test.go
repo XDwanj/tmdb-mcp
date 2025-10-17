@@ -46,8 +46,8 @@ func TestNewHTTPServer(t *testing.T) {
 	assert.NotNil(t, server.logger)
 	assert.NotNil(t, server.mux)
 	assert.Equal(t, "localhost:8910", server.server.Addr)
-	assert.Equal(t, 15*time.Second, server.server.ReadTimeout)
-	assert.Equal(t, 15*time.Second, server.server.WriteTimeout)
+	assert.Equal(t, 30*time.Second, server.server.ReadTimeout)    // Story 4.4: Updated for SSE
+	assert.Equal(t, time.Duration(0), server.server.WriteTimeout) // Story 4.4: Set to 0 for SSE long-lived connections
 	assert.Equal(t, 120*time.Second, server.server.IdleTimeout)
 }
 
@@ -410,4 +410,76 @@ func TestAuthMiddleware_ContentType(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+}
+
+// TestConnectionTrackingMiddleware tests the connection tracking middleware (Story 4.4)
+func TestConnectionTrackingMiddleware(t *testing.T) {
+	cfg := testConfig()
+	cfg.Server.SSE.Token = "test-token"
+	logger := testLogger()
+
+	// 创建带有 MCP server 的 HTTPServer
+	server := NewHTTPServer(cfg, nil, logger)
+
+	// Verify initial counter is 0
+	initialCount := server.activeConnections.Load()
+	assert.Equal(t, int32(0), initialCount, "Initial active connections should be 0")
+
+	// Create test handler
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify counter was incremented
+		count := server.activeConnections.Load()
+		assert.Equal(t, int32(1), count, "Active connections should be 1 during request")
+		w.WriteHeader(http.StatusOK)
+	})
+
+	// Wrap with ConnectionTrackingMiddleware
+	tracked := ConnectionTrackingMiddleware(server)(testHandler)
+
+	// Execute request
+	req := httptest.NewRequest("GET", "/test", nil)
+	rr := httptest.NewRecorder()
+	tracked.ServeHTTP(rr, req)
+
+	// Verify response
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	// Verify counter decremented after request
+	finalCount := server.activeConnections.Load()
+	assert.Equal(t, int32(0), finalCount, "Active connections should be 0 after request completes")
+}
+
+// TestConnectionTrackingMiddleware_Concurrent tests concurrent connection tracking (Story 4.4)
+func TestConnectionTrackingMiddleware_Concurrent(t *testing.T) {
+	cfg := testConfig()
+	logger := testLogger()
+	server := NewHTTPServer(cfg, nil, logger)
+
+	// Handler that simulates work
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(10 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	})
+
+	tracked := ConnectionTrackingMiddleware(server)(testHandler)
+
+	// Run 5 concurrent requests
+	done := make(chan bool, 5)
+	for i := 0; i < 5; i++ {
+		go func() {
+			req := httptest.NewRequest("GET", "/test", nil)
+			rr := httptest.NewRecorder()
+			tracked.ServeHTTP(rr, req)
+			done <- true
+		}()
+	}
+
+	// Wait for all to complete
+	for i := 0; i < 5; i++ {
+		<-done
+	}
+
+	// Verify final count is 0
+	finalCount := server.activeConnections.Load()
+	assert.Equal(t, int32(0), finalCount, "All connections should be closed")
 }

@@ -5,28 +5,30 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/XDwanj/tmdb-mcp/internal/config"
-	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
+	mcpServer "github.com/XDwanj/tmdb-mcp/internal/mcp"
 	"go.uber.org/zap"
 )
 
 // HTTPServer represents an HTTP server for SSE connections
 type HTTPServer struct {
-	server    *http.Server
-	mcpServer *mcp.Server
-	config    *config.Config
-	logger    *zap.Logger
-	mux       *http.ServeMux
+	server            *http.Server
+	mcpServer         *mcpServer.Server
+	config            *config.Config
+	logger            *zap.Logger
+	mux               *http.ServeMux
+	activeConnections atomic.Int32 // Thread-safe counter for active SSE connections
 }
 
 // NewHTTPServer creates a new HTTP server instance
-func NewHTTPServer(cfg *config.Config, mcpServer *mcp.Server, logger *zap.Logger) *HTTPServer {
+func NewHTTPServer(cfg *config.Config, mcpSrv *mcpServer.Server, logger *zap.Logger) *HTTPServer {
 	mux := http.NewServeMux()
 
 	httpServer := &HTTPServer{
-		mcpServer: mcpServer,
+		mcpServer: mcpSrv,
 		config:    cfg,
 		logger:    logger,
 		mux:       mux,
@@ -35,28 +37,28 @@ func NewHTTPServer(cfg *config.Config, mcpServer *mcp.Server, logger *zap.Logger
 	// Register health check endpoint (public - no authentication required)
 	mux.HandleFunc("/health", httpServer.healthHandler())
 
-	// TODO (Story 4.4): Register SSE endpoint with authentication
-	// Example integration of AuthMiddleware for protected endpoints:
-	//
-	// sseHandler := mcp.NewSSEHTTPHandler(func(r *http.Request) *mcp.Server {
-	//     return mcpServer
-	// })
-	// protectedSSEHandler := AuthMiddleware(cfg.Server.SSE.Token, logger)(sseHandler)
-	// mux.Handle("/mcp/sse", protectedSSEHandler)
-	//
-	// Note: AuthMiddleware should only be applied to protected endpoints,
-	// not as a global middleware. The /health endpoint must remain public.
+	// Register SSE endpoint with authentication (Story 4.4)
+	// Get SSE handler from MCP server
+	sseHandler := mcpSrv.GetSSEHandler()
+
+	// Apply middleware chain: Auth → ConnectionTracking → SSEHandler
+	protectedSSEHandler := AuthMiddleware(cfg.Server.SSE.Token, logger)(sseHandler)
+	trackedSSEHandler := ConnectionTrackingMiddleware(httpServer)(protectedSSEHandler)
+
+	// Register the protected SSE endpoint with connection tracking
+	mux.Handle("/mcp/sse", trackedSSEHandler)
 
 	// Apply middleware chain (recovery first, then logging)
 	// Note: Auth middleware is applied per-endpoint, not globally
 	handler := RecoveryMiddleware(logger)(LoggingMiddleware(logger)(mux))
 
 	// Create HTTP server with middleware-wrapped handler
+	// Note: WriteTimeout is set to 0 for SSE (long-lived connections)
 	httpServer.server = &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Server.SSE.Host, cfg.Server.SSE.Port),
 		Handler:      handler,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 0, // No write timeout for SSE (long-lived connections)
 		IdleTimeout:  120 * time.Second,
 	}
 

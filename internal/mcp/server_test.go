@@ -266,3 +266,47 @@ func TestSearchToolRegistration(t *testing.T) {
 	// 注意：由于 MCP SDK 自动生成 schema，我们只验证关键信息
 	// 详细的参数验证应该在集成测试中完成
 }
+
+// TestServer_GetSSEHandler 测试 GetSSEHandler 方法 (Story 4.4)
+func TestServer_GetSSEHandler(t *testing.T) {
+	logger := zap.NewNop()
+	tmdbConfig := config.TMDBConfig{
+		APIKey:    "test_api_key",
+		Language:  "en-US",
+		RateLimit: 40,
+	}
+	tmdbClient := tmdb.NewClient(tmdbConfig, logger)
+
+	// 创建 MCP Server
+	server := NewServer(tmdbClient, logger)
+
+	// 获取 SSE handler
+	handler := server.GetSSEHandler()
+
+	// 验证 handler 不为 nil
+	require.NotNil(t, handler, "GetSSEHandler should return a non-nil handler")
+}
+
+// TestServer_GetSSEHandler_Multiple 测试多次调用 GetSSEHandler
+func TestServer_GetSSEHandler_Multiple(t *testing.T) {
+	logger := zap.NewNop()
+	tmdbConfig := config.TMDBConfig{
+		APIKey:    "test_api_key",
+		Language:  "en-US",
+		RateLimit: 40,
+	}
+	tmdbClient := tmdb.NewClient(tmdbConfig, logger)
+
+	server := NewServer(tmdbClient, logger)
+
+	// 多次调用 GetSSEHandler
+	handler1 := server.GetSSEHandler()
+	handler2 := server.GetSSEHandler()
+
+	// 两次调用都应该返回有效的 handler
+	require.NotNil(t, handler1, "First call should return a non-nil handler")
+	require.NotNil(t, handler2, "Second call should return a non-nil handler")
+
+	// 注意：每次调用都会创建一个新的 SSE handler 实例
+	// 这是预期行为，因为 NewSSEHandler 每次都创建新的 handler
+}
