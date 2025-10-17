@@ -231,3 +231,183 @@ func TestRecoveryMiddleware(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	assert.Contains(t, rr.Body.String(), "Internal server error")
 }
+
+// TestAuthMiddleware tests the Bearer Token authentication middleware
+func TestAuthMiddleware(t *testing.T) {
+	expectedToken := "abcd1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+	logger := testLogger()
+
+	tests := []struct {
+		name           string
+		authHeader     string
+		wantStatus     int
+		wantBody       string
+		shouldCallNext bool
+	}{
+		{
+			name:           "valid bearer token",
+			authHeader:     "Bearer " + expectedToken,
+			wantStatus:     http.StatusOK,
+			shouldCallNext: true,
+		},
+		{
+			name:           "missing authorization header",
+			authHeader:     "",
+			wantStatus:     http.StatusUnauthorized,
+			wantBody:       `"error":"unauthorized"`,
+			shouldCallNext: false,
+		},
+		{
+			name:           "invalid format - Token instead of Bearer",
+			authHeader:     "Token " + expectedToken,
+			wantStatus:     http.StatusUnauthorized,
+			wantBody:       `"error":"unauthorized"`,
+			shouldCallNext: false,
+		},
+		{
+			name:           "invalid token",
+			authHeader:     "Bearer wrongtoken123456789012345678901234567890123456789012345678",
+			wantStatus:     http.StatusUnauthorized,
+			wantBody:       `"error":"unauthorized"`,
+			shouldCallNext: false,
+		},
+		{
+			name:           "empty token",
+			authHeader:     "Bearer ",
+			wantStatus:     http.StatusUnauthorized,
+			wantBody:       `"error":"unauthorized"`,
+			shouldCallNext: false,
+		},
+		{
+			name:           "bearer lowercase",
+			authHeader:     "bearer " + expectedToken,
+			wantStatus:     http.StatusUnauthorized,
+			wantBody:       `"error":"unauthorized"`,
+			shouldCallNext: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a test handler that tracks if it was called
+			nextCalled := false
+			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				nextCalled = true
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("success"))
+			})
+
+			// Wrap with AuthMiddleware
+			handler := AuthMiddleware(expectedToken, logger)(nextHandler)
+
+			// Create test request
+			req := httptest.NewRequest("GET", "/test", nil)
+			if tt.authHeader != "" {
+				req.Header.Set("Authorization", tt.authHeader)
+			}
+
+			rr := httptest.NewRecorder()
+
+			// Execute
+			handler.ServeHTTP(rr, req)
+
+			// Verify status code
+			assert.Equal(t, tt.wantStatus, rr.Code, "status code mismatch")
+
+			// Verify next handler was called or not
+			assert.Equal(t, tt.shouldCallNext, nextCalled, "next handler call mismatch")
+
+			// Verify error response body if expected
+			if tt.wantBody != "" {
+				assert.Contains(t, rr.Body.String(), tt.wantBody, "response body should contain error")
+
+				// Verify JSON structure
+				var response map[string]string
+				err := json.NewDecoder(rr.Body).Decode(&response)
+				require.NoError(t, err, "response should be valid JSON")
+				assert.Equal(t, "unauthorized", response["error"])
+				assert.NotEmpty(t, response["message"])
+			}
+
+			// Verify Content-Type for error responses
+			if tt.wantStatus == http.StatusUnauthorized {
+				assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+			}
+		})
+	}
+}
+
+// TestCompareTokens tests the constant-time token comparison function
+func TestCompareTokens(t *testing.T) {
+	tests := []struct {
+		name     string
+		provided string
+		expected string
+		want     bool
+	}{
+		{
+			name:     "identical tokens",
+			provided: "token123",
+			expected: "token123",
+			want:     true,
+		},
+		{
+			name:     "different tokens",
+			provided: "token123",
+			expected: "token456",
+			want:     false,
+		},
+		{
+			name:     "different length tokens",
+			provided: "token123",
+			expected: "token12345",
+			want:     false,
+		},
+		{
+			name:     "empty tokens",
+			provided: "",
+			expected: "",
+			want:     true,
+		},
+		{
+			name:     "one empty token",
+			provided: "token123",
+			expected: "",
+			want:     false,
+		},
+		{
+			name:     "case sensitive",
+			provided: "Token123",
+			expected: "token123",
+			want:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := compareTokens(tt.provided, tt.expected)
+			assert.Equal(t, tt.want, result)
+		})
+	}
+}
+
+// TestAuthMiddleware_ContentType tests that error responses have correct Content-Type
+func TestAuthMiddleware_ContentType(t *testing.T) {
+	logger := testLogger()
+	expectedToken := "test-token"
+
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := AuthMiddleware(expectedToken, logger)(nextHandler)
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	// No Authorization header - should return 401
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+}

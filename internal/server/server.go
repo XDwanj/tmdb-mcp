@@ -32,10 +32,23 @@ func NewHTTPServer(cfg *config.Config, mcpServer *mcp.Server, logger *zap.Logger
 		mux:       mux,
 	}
 
-	// Register health check endpoint
+	// Register health check endpoint (public - no authentication required)
 	mux.HandleFunc("/health", httpServer.healthHandler())
 
+	// TODO (Story 4.4): Register SSE endpoint with authentication
+	// Example integration of AuthMiddleware for protected endpoints:
+	//
+	// sseHandler := mcp.NewSSEHTTPHandler(func(r *http.Request) *mcp.Server {
+	//     return mcpServer
+	// })
+	// protectedSSEHandler := AuthMiddleware(cfg.Server.SSE.Token, logger)(sseHandler)
+	// mux.Handle("/mcp/sse", protectedSSEHandler)
+	//
+	// Note: AuthMiddleware should only be applied to protected endpoints,
+	// not as a global middleware. The /health endpoint must remain public.
+
 	// Apply middleware chain (recovery first, then logging)
+	// Note: Auth middleware is applied per-endpoint, not globally
 	handler := RecoveryMiddleware(logger)(LoggingMiddleware(logger)(mux))
 
 	// Create HTTP server with middleware-wrapped handler
