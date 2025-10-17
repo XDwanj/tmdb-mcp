@@ -53,6 +53,26 @@ func main() {
 		zap.String("logging_level", cfg.Logging.Level),
 	)
 
+	// 如果 SSE 模式启用，显示 Token 信息
+	if cfg.Server.Mode == "sse" || cfg.Server.Mode == "both" {
+		if cfg.TokenGenerated {
+			// Token 是自动生成的，显示完整 token（用户需要复制配置客户端）
+			log.Info("SSE Token auto-generated (save this for client configuration)",
+				zap.String("token", cfg.Server.SSE.Token),
+				zap.String("config_file", "~/.tmdb-mcp/config.yaml"),
+			)
+		} else {
+			// Token 是从配置或环境变量加载的，仅显示前 8 个字符
+			tokenPrefix := cfg.Server.SSE.Token
+			if len(tokenPrefix) > 8 {
+				tokenPrefix = tokenPrefix[:8] + "..."
+			}
+			log.Info("SSE Token loaded from configuration",
+				zap.String("token_prefix", tokenPrefix),
+			)
+		}
+	}
+
 	// 创建 TMDB Client
 	tmdbClient := tmdb.NewClient(cfg.TMDB, log)
 	log.Info("TMDB Client created")

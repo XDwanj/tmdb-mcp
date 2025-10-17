@@ -13,6 +13,10 @@ type Config struct {
 	TMDB    TMDBConfig   `mapstructure:"tmdb" json:"tmdb"`
 	Server  ServerConfig `mapstructure:"server" json:"server"`
 	Logging LogConfig    `mapstructure:"logging" json:"logging"`
+
+	// TokenGenerated indicates if the SSE token was auto-generated
+	// This is not persisted to config file
+	TokenGenerated bool `mapstructure:"-" json:"-"`
 }
 
 // TMDBConfig contains TMDB API configuration
@@ -83,6 +87,13 @@ func Load() (*Config, error) {
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	// 处理 SSE Token（如果 SSE 模式启用）
+	if cfg.Server.Mode == "sse" || cfg.Server.Mode == "both" {
+		if err := handleSSEToken(&cfg, v, configDir); err != nil {
+			return nil, fmt.Errorf("failed to handle SSE token: %w", err)
+		}
 	}
 
 	return &cfg, nil
@@ -174,5 +185,57 @@ func ensureConfigDir(configDir string) error {
 			return fmt.Errorf("failed to create config directory: %w", err)
 		}
 	}
+	return nil
+}
+
+// handleSSEToken handles SSE token loading, generation, and validation
+func handleSSEToken(cfg *Config, v *viper.Viper, configDir string) error {
+	token := cfg.Server.SSE.Token
+
+	// If token is empty, generate a new one
+	if token == "" {
+		newToken, err := GenerateSSEToken()
+		if err != nil {
+			return fmt.Errorf("failed to generate SSE token: %w", err)
+		}
+		token = newToken
+		cfg.Server.SSE.Token = token
+		cfg.TokenGenerated = true
+
+		// Save the generated token to config file
+		if err := SaveTokenToConfig(v, configDir, token); err != nil {
+			return fmt.Errorf("failed to save generated token to config: %w", err)
+		}
+	}
+
+	// Validate token format
+	if err := ValidateToken(token); err != nil {
+		return fmt.Errorf("invalid SSE token: %w", err)
+	}
+
+	return nil
+}
+
+// SaveTokenToConfig saves the SSE token to the configuration file
+func SaveTokenToConfig(v *viper.Viper, configDir, token string) error {
+	// Set the token in viper
+	v.Set("server.sse.token", token)
+
+	// Determine config file path
+	configFile := v.ConfigFileUsed()
+	if configFile == "" {
+		configFile = filepath.Join(configDir, "config.yaml")
+	}
+
+	// Write config to file
+	if err := v.WriteConfigAs(configFile); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	// Set file permissions to 0600 (owner read/write only)
+	if err := os.Chmod(configFile, 0600); err != nil {
+		return fmt.Errorf("failed to set config file permissions: %w", err)
+	}
+
 	return nil
 }
