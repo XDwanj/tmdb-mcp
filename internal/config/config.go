@@ -142,7 +142,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("tmdb.rate_limit", 40)
 
 	// Server defaults
-	v.SetDefault("server.mode", "stdio")
+	v.SetDefault("server.mode", "both")
 	v.SetDefault("server.sse.enabled", false)
 	v.SetDefault("server.sse.host", "0.0.0.0")
 	v.SetDefault("server.sse.port", 8910)

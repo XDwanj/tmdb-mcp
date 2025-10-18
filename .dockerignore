@@ -1,0 +1,31 @@
+# Version control
+.git
+.gitignore
+
+# Documentation (keep README.md for reference)
+*.md
+!README.md
+
+# AI and development files
+.ai/
+.bmad-core/
+.claude/
+.vscode/
+.ignore/
+docs/stories/
+
+# Examples and samples
+examples/
+
+# Local configuration (users should mount or use ENV)
+config.yaml
+
+# Test and coverage files
+*.test
+coverage.out
+coverage.txt
+final_coverage.out
+
+# Binaries
+tmdb-mcp
+tmdb-mcp-*

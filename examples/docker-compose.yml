@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  tmdb-mcp:
+    # Docker image (update to your registry/username if publishing)
+    image: tmdb-mcp:latest
+
+    # Container name for easy identification
+    container_name: tmdb-mcp
+
+    # Environment variables for configuration
+    # Priority: ENV vars override config file
+    environment:
+      # REQUIRED: Your TMDB API Key (get from https://www.themoviedb.org/settings/api)
+      - TMDB_API_KEY=your_api_key_here
+
+      # REQUIRED for SSE mode: Token for Bearer authentication
+      # Generate a secure random token: openssl rand -base64 32
+      - SSE_TOKEN=your_secure_token_here
+
+      # Server mode: "sse" (HTTP+SSE) or "stdio" (stdin/stdout)
+      - SERVER_MODE=sse
+
+      # SSE server host (0.0.0.0 allows external connections)
+      - SERVER_SSE_HOST=0.0.0.0
+
+      # SSE server port
+      - SERVER_SSE_PORT=8910
+
+      # TMDB API language (ISO 639-1 code)
+      - TMDB_LANGUAGE=en-US
+
+      # TMDB API rate limit (requests per 10 seconds)
+      - TMDB_RATE_LIMIT=40
+
+      # Logging level: debug, info, warn, error
+      - LOGGING_LEVEL=info
+
+    # Port mapping: host:container
+    ports:
+      - "8910:8910"
+
+    # Optional: Mount config file from host
+    # Uncomment if you prefer using config.yaml instead of ENV vars
+    # volumes:
+    #   - ./config.yaml:/root/.tmdb-mcp/config.yaml:ro
+
+    # Restart policy: always restart unless explicitly stopped
+    restart: unless-stopped
+
+    # Health check configuration
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8910/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
