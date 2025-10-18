@@ -38,9 +38,9 @@ tmdb-mcp/
 │   │   ├── get_recommendations.go # get_recommendations 工具
 │   │   └── params.go             # 参数模型定义
 │   │
-│   ├── server/                   # HTTP Server（SSE 模式）
-│   │   ├── server.go             # HTTP Server 设置
-│   │   └── middleware.go         # 认证中间件
+│   ├── server/                   # HTTP Server 相关组件
+│   │   └── middleware/           # HTTP 中间件
+│   │       └── auth.go           # Bearer Token 认证中间件
 │   │
 │   └── logger/                   # 日志系统
 │       └── logger.go             # Zap Logger 初始化

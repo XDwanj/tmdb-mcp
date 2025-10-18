@@ -3,21 +3,26 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.uber.org/zap"
 
 	"github.com/XDwanj/tmdb-mcp/internal/config"
 	"github.com/XDwanj/tmdb-mcp/internal/logger"
 	"github.com/XDwanj/tmdb-mcp/internal/mcp"
-	"github.com/XDwanj/tmdb-mcp/internal/server"
+	"github.com/XDwanj/tmdb-mcp/internal/server/middleware"
 	"github.com/XDwanj/tmdb-mcp/internal/tmdb"
 	"github.com/XDwanj/tmdb-mcp/pkg/version"
-	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+// healthHandler returns server health status
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"status":"ok"}`))
+}
 
 func main() {
 	// 加载配置
@@ -100,61 +105,54 @@ func main() {
 	// 创建 MCP Server
 	mcpServer := mcp.NewServer(tmdbClient, log)
 
-	// 设置信号处理
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
-	// 根据配置的 mode 启动相应的服务器
-	errChan := make(chan error, 1)
-
-	// 启动 stdio 模式（如果需要）
-	if cfg.Server.Mode == "stdio" || cfg.Server.Mode == "both" {
-		go func() {
-			log.Info("Starting MCP Server in stdio mode")
-			transport := &mcpsdk.StdioTransport{}
-			if err := mcpServer.Run(ctx, transport); err != nil {
-				errChan <- err
-			}
-		}()
+	// 根据配置模式启动服务
+	switch cfg.Server.Mode {
+	case "stdio":
+		RunStdioModeServer(ctx, mcpServer, log)
+	case "sse":
+		RunSSEModeServer(ctx, mcpServer, cfg, log)
+	case "both":
+		RunBothModeServer(ctx, mcpServer, cfg, log)
+	default:
+		log.Fatal("Invalid server mode", zap.String("mode", cfg.Server.Mode))
 	}
+}
 
-	// 启动 SSE 模式（如果需要）
-	var httpServer *server.HTTPServer
-	if cfg.Server.Mode == "sse" || cfg.Server.Mode == "both" {
-		httpServer = server.NewHTTPServer(cfg, mcpServer, log)
-		go func() {
-			log.Info("Starting HTTP Server for SSE mode",
-				zap.String("addr", fmt.Sprintf("%s:%d", cfg.Server.SSE.Host, cfg.Server.SSE.Port)),
-			)
-			if err := httpServer.Start(); err != nil {
-				errChan <- fmt.Errorf("HTTP server failed: %w", err)
-			}
-		}()
+func RunBothModeServer(ctx context.Context, mcpServer *mcp.Server, cfg *config.Config, log *zap.Logger) {
+	// 同时运行 stdio 和 SSE 模式
+	log.Info("Starting MCP server in both stdio and SSE modes")
+	go func() {
+		RunSSEModeServer(ctx, mcpServer, cfg, log)
+	}()
+	RunStdioModeServer(ctx, mcpServer, log)
+}
+
+func RunStdioModeServer(ctx context.Context, mcpServer *mcp.Server, log *zap.Logger) {
+	// stdio 模式：通过标准输入输出通信
+	log.Info("Starting MCP server in stdio mode")
+	transport := &mcpsdk.StdioTransport{}
+	if err := mcpServer.Run(ctx, transport); err != nil {
+		log.Fatal("MCP server failed", zap.Error(err))
 	}
+}
 
-	// 等待信号或错误
-	select {
-	case <-sigChan:
-		log.Info("Received shutdown signal")
-		cancel()
-	case err := <-errChan:
-		log.Error("Server failed", zap.Error(err))
-		cancel()
+func RunSSEModeServer(ctx context.Context, mcpServer *mcp.Server, cfg *config.Config, log *zap.Logger) {
+	// SSE 模式：通过 HTTP SSE 通信
+	log.Info("Starting MCP server in SSE mode")
+
+	// 设置 SSE 处理器
+	handler := mcpServer.GetSSEHandler()
+	handler = middleware.AuthMiddleware(cfg.Server.SSE.Token, handler)
+
+	// 设置路由
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", healthHandler)
+	mux.Handle("/mcp/sse", handler)
+
+	// 启动服务器
+	addr := fmt.Sprintf("%s:%d", cfg.Server.SSE.Host, cfg.Server.SSE.Port)
+	log.Info("Starting HTTP server", zap.String("addr", addr))
+	if err := http.ListenAndServe(addr, mux); err != nil {
+		log.Fatal("HTTP server failed", zap.Error(err))
 	}
-
-	// 优雅退出 HTTP Server（如果运行中）
-	if httpServer != nil {
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer shutdownCancel()
-
-		if err := httpServer.Shutdown(shutdownCtx); err != nil {
-			log.Error("HTTP server shutdown failed", zap.Error(err))
-		}
-	}
-
-	// 优雅退出
-	log.Info("TMDB MCP Service shutdown complete")
 }

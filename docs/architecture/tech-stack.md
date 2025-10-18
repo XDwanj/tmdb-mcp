@@ -115,6 +115,35 @@ httpClient := resty.New().
 [Source: docs/stories/1.4.rate-limiting-mechanism.md#Architecture Decision Record]
 
 
+## 精简原则落地
+
+**不使用的工具/库**:
+- ❌ Makefile - 仅使用 `go build`, `go test`
+- ❌ golangci-lint - 仅使用 `go vet`
+- ❌ 其他 linter（staticcheck, errcheck 等）
+- ❌ Web 框架（Gin, Echo, Fiber）
+- ❌ ORM 框架（无数据库需求）
+- ❌ 依赖注入框架（wire, dig）- 手动构造函数注入
+
+**构建命令示例**:
+```bash
+# 编译
+go build -o tmdb-mcp ./cmd/tmdb-mcp
+
+# 测试
+go test ./...
+
+# 格式化
+go fmt ./...
+
+# 静态检查
+go vet ./...
+
+# 运行
+./tmdb-mcp
+```
+
+
 ## MCP Middleware 架构设计
 
 **实现模式**: 使用 MCP SDK `AddReceivingMiddleware()` 统一处理日志记录
@@ -197,33 +226,5 @@ mcpServer.AddReceivingMiddleware(LoggingMiddleware(logger))
 
 [Source: Official MCP SDK Middleware Example]
 
-
-## 精简原则落地
-
-**不使用的工具/库**:
-- ❌ Makefile - 仅使用 `go build`, `go test`
-- ❌ golangci-lint - 仅使用 `go vet`
-- ❌ 其他 linter（staticcheck, errcheck 等）
-- ❌ Web 框架（Gin, Echo, Fiber）
-- ❌ ORM 框架（无数据库需求）
-- ❌ 依赖注入框架（wire, dig）- 手动构造函数注入
-
-**构建命令示例**:
-```bash
-# 编译
-go build -o tmdb-mcp ./cmd/tmdb-mcp
-
-# 测试
-go test ./...
-
-# 格式化
-go fmt ./...
-
-# 静态检查
-go vet ./...
-
-# 运行
-./tmdb-mcp
-```
-
 ---
+

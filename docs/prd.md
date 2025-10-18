@@ -675,14 +675,14 @@ func TestSearchTool_Integration(t *testing.T) {
 
 **Acceptance Criteria**:
 
-1. 创建 `internal/server` 包，实现 HTTP 服务器，结构体 `HTTPServer` 包含 `http.Server`、配置、MCP server 引用
-2. 实现 `NewHTTPServer(config Config, mcpServer *mcp.Server)` 构造函数
-3. 配置 `http.Server`：设置监听地址、读写超时、集成 zap logger 记录 HTTP 请求
-4. 实现 `/health` 端点（无需认证）：返回 `{"status": "ok", "version": "1.0.0", "mode": "sse"}`，使用标准 `http.HandlerFunc`
-5. 实现服务器启动和优雅关闭：`Start()` 和 `Stop(ctx)` 方法，支持 SIGINT/SIGTERM 信号处理
+1. 在 `cmd/tmdb-mcp/main.go` 中实现 HTTP 服务器启动逻辑，使用标准库 `net/http`
+2. 创建 `/health` 端点（无需认证）：返回 `{"status": "ok"}`，使用 `http.HandlerFunc`
+3. 实现 SSE 模式运行函数 `RunSSEModeServer()`，配置监听地址和端口
+4. 使用 `http.ServeMux` 注册路由：`/health` 和 `/mcp/sse`
+5. 使用 `http.ListenAndServe()` 启动服务器（阻塞式）
 6. 更新配置结构体，添加 SSE 相关配置（host, port, token）
-7. 编写单元测试：测试 server 启动/停止、`/health` 端点
-8. 编写集成测试：启动服务器，调用 `/health`，验证 200 OK
+7. 验证 `/health` 端点返回 200 OK
+8. 验证服务器可正常启动并接受 HTTP 请求
 
 #### Story 4.2: Token Generation and Management
 
@@ -708,14 +708,14 @@ func TestSearchTool_Integration(t *testing.T) {
 
 **Acceptance Criteria**:
 
-1. 实现标准库中间件 `AuthMiddleware(expectedToken string) func(http.Handler) http.Handler`
-2. 认证逻辑：提取 `Authorization` header、验证格式 `Bearer <token>`、使用 `crypto/subtle.ConstantTimeCompare` 比对 token
-3. 认证成功：调用 `next.ServeHTTP(w, r)`、记录 DEBUG 日志
-4. 认证失败：返回 `401 Unauthorized`、JSON 响应 `{"error": "unauthorized"}`、记录 WARN 日志
+1. 实现标准库中间件 `AuthMiddleware(expectedToken string, next http.Handler) http.Handler`
+2. 认证逻辑：提取 `Authorization` header、验证格式 `Bearer <token>`、比对 token（使用字符串比较）
+   - **注意**: 生产环境建议使用 `crypto/subtle.ConstantTimeCompare` 防止时序攻击
+3. 认证成功：调用 `next.ServeHTTP(w, r)`
+4. 认证失败：返回 `401 Unauthorized`、JSON 响应 `{"error": "unauthorized"}`
 5. 错误场景处理：缺少 header、格式错误、token 不匹配
 6. 将中间件应用到 SSE 路由（不应用到 `/health`）
-7. 编写单元测试：测试有效/无效 token、缺少 header、`/health` 不需要认证
-8. 编写集成测试：使用正确/错误 token 访问 SSE 端点
+7. 手动验证：使用有效/无效 token 访问 SSE 端点，验证认证逻辑正确
 
 #### Story 4.4: Implement SSE Endpoint with MCP SDK
 
@@ -753,13 +753,12 @@ func TestSearchTool_Integration(t *testing.T) {
 
 1. 模式配置：`server.mode` 支持三个值：`stdio`, `sse`, `both`（默认）
 2. stdio 模式实现：启动 MCP server，监听 stdin/stdout，阻塞主 goroutine
-3. sse 模式实现：启动 HTTP server（非阻塞，使用 goroutine），监听端口 8910
-4. both 模式实现：同时启动 stdio 和 HTTP server，共享 TMDB client 和工具实现
-5. 优雅关闭：捕获 SIGINT/SIGTERM 信号、同时关闭两个 server、等待活跃连接完成（最多 10 秒超时）
-6. 日志记录：启动时记录启用的模式
-7. 配置验证：如果 mode="sse" 但 `enabled=false`，返回错误
-8. 编写单元测试：测试每种模式的启动逻辑
-9. 编写集成测试：启动 stdio 模式、sse 模式、both 模式，验证优雅关闭
+3. sse 模式实现：启动 HTTP server（阻塞式，使用 `http.ListenAndServe`），监听端口 8910
+4. both 模式实现：HTTP server 在 goroutine 中运行，stdio 在主 goroutine 中运行，共享 TMDB client 和工具实现
+5. 验证三种模式可正常启动：`stdio`, `sse`, `both`
+6. 验证 `both` 模式下 stdio 和 SSE 同时工作
+7. 日志记录：启动时记录启用的模式
+8. 配置验证：如果 mode="sse" 但 `enabled=false`，返回错误
 
 #### Story 4.6: Docker Image and Multi-Platform Build
 

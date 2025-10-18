@@ -945,16 +945,17 @@ func (t *SearchTool) Handler() func(context.Context, *mcp.CallToolRequest, Searc
 - **职责分离**: Tools 层只处理日志和默认值,参数验证在 Client 层统一完成
 - **闭包模式**: 避免全局变量,每个工具实例独立维护依赖
 
-### HTTP Server (internal/server)
+### HTTP Server (cmd/tmdb-mcp/main.go)
 
-**Responsibility**: 提供 SSE HTTP 服务，实现 Bearer Token 认证中间件
+**Responsibility**: 在主程序中直接提供 SSE HTTP 服务，集成 MCP SDK 的 `SSEHTTPHandler`
 
-**Key Interfaces**:
-- `func NewHTTPServer(mcpServer *mcp.Server, config SSEConfig, logger *zap.Logger) *http.Server`
-- `func Start() error` - 启动服务器
-- `func Shutdown(ctx context.Context) error` - 优雅关闭
+**Key Functions**:
+- `func RunSSEModeServer(ctx, mcpServer, config, logger)` - 启动 SSE 模式服务器
+- `func RunStdioModeServer(ctx, mcpServer, logger)` - 启动 stdio 模式服务器
+- `func RunBothModeServer(ctx, mcpServer, config, logger)` - 同时启动两种模式
+- `func healthHandler(w, r)` - 健康检查端点
 
-**Dependencies**: MCP Server, net/http, Logger
+**Dependencies**: MCP Server, net/http, AuthMiddleware, Logger
 
 **Technology Stack**: `net/http` (标准库), MCP SDK 的 `SSEHTTPHandler`, Zap
 
@@ -962,54 +963,49 @@ func (t *SearchTool) Handler() func(context.Context, *mcp.CallToolRequest, Searc
 - `GET /mcp/sse` - MCP over SSE 连接（需要认证）
 - `GET /health` - 健康检查（无需认证）
 
-**Authentication Middleware**:
-```go
-func AuthMiddleware(expectedToken string) func(http.Handler) http.Handler {
-    return func(next http.Handler) http.Handler {
-        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-            // 提取 Authorization header
-            authHeader := r.Header.Get("Authorization")
-            if authHeader == "" {
-                http.Error(w, "Unauthorized", http.StatusUnauthorized)
-                return
-            }
-
-            // 验证 Bearer token
-            token := strings.TrimPrefix(authHeader, "Bearer ")
-            if subtle.ConstantTimeCompare([]byte(token), []byte(expectedToken)) != 1 {
-                http.Error(w, "Unauthorized", http.StatusUnauthorized)
-                return
-            }
-
-            // 认证通过，调用下一个 handler
-            next.ServeHTTP(w, r)
-        })
-    }
-}
-```
-
 **Server Setup**:
 ```go
-func NewHTTPServer(mcpServer *mcp.Server, config SSEConfig, logger *zap.Logger) *http.Server {
+func RunSSEModeServer(ctx context.Context, mcpServer *mcp.Server, cfg *config.Config, log *zap.Logger) {
+    // 设置 SSE 处理器
+    handler := mcpServer.GetSSEHandler()
+    handler = middleware.AuthMiddleware(cfg.Server.SSE.Token, handler)
+
+    // 设置路由
     mux := http.NewServeMux()
+    mux.HandleFunc("/health", healthHandler)
+    mux.Handle("/mcp/sse", handler)
 
-    // 健康检查端点（无需认证）
-    mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-        json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-    })
-
-    // SSE 端点（需要认证）
-    sseHandler := mcp.NewSSEHTTPHandler(func(*http.Request) *mcp.Server {
-        return mcpServer
-    })
-    mux.Handle("/mcp/sse", AuthMiddleware(config.Token)(sseHandler))
-
-    return &http.Server{
-        Addr:    fmt.Sprintf("%s:%d", config.Host, config.Port),
-        Handler: mux,
+    // 启动服务器（阻塞）
+    addr := fmt.Sprintf("%s:%d", cfg.Server.SSE.Host, cfg.Server.SSE.Port)
+    log.Info("Starting HTTP server", zap.String("addr", addr))
+    if err := http.ListenAndServe(addr, mux); err != nil {
+        log.Fatal("HTTP server failed", zap.Error(err))
     }
 }
 ```
+
+**Authentication Middleware** (`internal/server/middleware/auth.go`):
+```go
+func AuthMiddleware(token string, next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        auth := r.Header.Get("Authorization")
+        if auth != "Bearer "+token {
+            w.Header().Set("Content-Type", "application/json")
+            w.WriteHeader(http.StatusUnauthorized)
+            w.Write([]byte(`{"error":"unauthorized"}`))
+            return
+        }
+        next.ServeHTTP(w, r)
+    })
+}
+```
+
+**Design Notes**:
+- HTTP 服务器逻辑直接在 `main.go` 中实现，无独立组件
+- 使用 `http.ServeMux` 和 `http.ListenAndServe()` 启动
+- 认证中间件封装 SSE handler
+- 无优雅关闭机制（简化设计）
+- AuthMiddleware 使用字符串直接比较（MVP 阶段，生产环境建议使用 `crypto/subtle.ConstantTimeCompare`）
 
 ### Logger (internal/logger)
 
@@ -1124,18 +1120,18 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Browser as Browser/App
-    participant HTTP as HTTP Server
+    participant Main as main.go
     participant Auth as Auth Middleware
     participant SSE as SSE Handler
     participant MCP as MCP Server
     participant Tool as Tool
     participant Client as TMDB Client
 
-    Browser->>HTTP: GET /mcp/sse<br/>Authorization: Bearer TOKEN
-    HTTP->>Auth: Verify token
-    Auth->>Auth: ConstantTimeCompare
-    Auth-->>HTTP: OK
-    HTTP->>SSE: Handle SSE connection
+    Browser->>Main: GET /mcp/sse<br/>Authorization: Bearer TOKEN
+    Main->>Auth: Verify token
+    Auth->>Auth: String Compare
+    Auth-->>Main: OK
+    Main->>SSE: Handle SSE connection
     SSE->>MCP: MCP request
     MCP->>Tool: Call tool
     Tool->>Client: TMDB API call
@@ -1256,9 +1252,9 @@ tmdb-mcp/
 │   │   ├── get_recommendations.go # get_recommendations 工具
 │   │   └── params.go             # 参数模型定义
 │   │
-│   ├── server/                   # HTTP Server（SSE 模式）
-│   │   ├── server.go             # HTTP Server 设置
-│   │   └── middleware.go         # 认证中间件
+│   ├── server/                   # HTTP Server 相关组件
+│   │   └── middleware/           # HTTP 中间件
+│   │       └── auth.go           # Bearer Token 认证中间件
 │   │
 │   └── logger/                   # 日志系统
 │       └── logger.go             # Zap Logger 初始化
