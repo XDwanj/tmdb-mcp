@@ -107,15 +107,42 @@ Key fields:
 - Docker Compose: `examples/docker-compose.yml`
 - Kubernetes: expose the container at port 8910 and configure `SSE_TOKEN`/`TMDB_API_KEY` via secrets
 
-## Screenshots
+## Use with Claude Code (MCP)
 
-Claude Code usage (placeholder):
+When running in SSE mode (for example at `http://localhost:8910/mcp/sse`) with an `SSE_TOKEN`, you can connect Claude Code via either of the following methods.
 
-![Claude Demo](docs/images/claude-demo.svg)
+- Option 1: Configure `~/.claude.json`
 
-Config example (placeholder):
+```json5
+{
+  "mcpServers": {
+    "tmdb-mcp-sse": {
+      "type": "sse",
+      "url": "http://localhost:8910/mcp/sse",
+      "headers": {
+        "Authorization": "Bearer xxxxxxxxxxxxxxxxxxxxx"
+      }
+    }
+  }
+}
+```
 
-![Config Example](docs/images/config-example.svg)
+- Option 2: Use the Claude CLI
+
+```sh
+claude mcp add --transport sse tmdb-mcp-sse \
+  http://localhost:8910/mcp/sse \
+  --header "Authorization: Bearer xxxxxxxxxxxxxxxxxxxxx" \
+  --scope user
+```
+
+- Verify installation
+
+```sh
+claude mcp list
+```
+
+Replace the placeholder token with your actual `SSE_TOKEN`, and adjust the URL if the server runs on a different host/port.
 
 ## Development
 

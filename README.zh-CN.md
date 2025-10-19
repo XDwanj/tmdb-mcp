@@ -106,15 +106,42 @@ docker run --rm -p 8910:8910 \
 - Docker Compose：`examples/docker-compose.yml`
 - K8s：以 8910 端口暴露容器，`SSE_TOKEN`/`TMDB_API_KEY` 使用 Secret 管理
 
-## 截图/GIF（占位）
+## 在 Claude Code 中使用（MCP）
 
-Claude Code 使用演示：
+当以 SSE 模式运行（例如 `http://localhost:8910/mcp/sse`），并已配置 `SSE_TOKEN` 后，可以通过以下两种方式将 Claude Code 连接到本服务：
 
-![Claude Demo](docs/images/claude-demo.svg)
+- 方式一：配置 `~/.claude.json`
 
-配置文件示例：
+```json5
+{
+  "mcpServers": {
+    "tmdb-mcp-sse": {
+      "type": "sse",
+      "url": "http://localhost:8910/mcp/sse",
+      "headers": {
+        "Authorization": "Bearer xxxxxxxxxxxxxxxxxxxxx"
+      }
+    }
+  }
+}
+```
 
-![Config Example](docs/images/config-example.svg)
+- 方式二：使用 Claude 命令行
+
+```sh
+claude mcp add --transport sse tmdb-mcp-sse \
+  http://localhost:8910/mcp/sse \
+  --header "Authorization: Bearer xxxxxxxxxxxxxxxxxxxxx" \
+  --scope user
+```
+
+- 校验是否安装成功
+
+```sh
+claude mcp list
+```
+
+请将占位 Token 替换为实际的 `SSE_TOKEN`，如服务运行在不同主机或端口，请相应调整 URL。
 
 ## 开发与贡献指南
 
