@@ -56,12 +56,12 @@ curl -s http://localhost:8910/health
 #### Option 1: Use pre-built image (Recommended)
 
 ```bash
-docker pull ghcr.io/XDwanj/tmdb-mcp:latest
+docker pull ghcr.io/xdwanj/tmdb-mcp:latest
 docker run --rm -p 8910:8910 \
   -e TMDB_API_KEY=your_api_key \
   -e SERVER_MODE=sse \
   -e SSE_TOKEN=$(openssl rand -base64 32) \
-  ghcr.io/XDwanj/tmdb-mcp:latest
+  ghcr.io/xdwanj/tmdb-mcp:latest
 ```
 
 #### Option 2: Build from source
@@ -141,7 +141,7 @@ Key fields:
      -e TMDB_API_KEY=your_api_key \
      -e SERVER_MODE=sse \
      -e SSE_TOKEN=your_token \
-     ghcr.io/XDwanj/tmdb-mcp:latest
+     ghcr.io/xdwanj/tmdb-mcp:latest
    ```
 
 2. **Download Binary:**
@@ -162,13 +162,13 @@ Key fields:
 
 - **Docker Compose:** See `examples/docker-compose.yml`
 - **Kubernetes:** Expose the container at port 8910 and configure `SSE_TOKEN`/`TMDB_API_KEY` via secrets
-- **Docker Registry:** Use `ghcr.io/XDwanj/tmdb-mcp:{tag}` for specific versions
+- **Docker Registry:** Use `ghcr.io/xdwanj/tmdb-mcp:{tag}` for specific versions
 
 ### Version Management
 
 - Use semantic versioning (e.g., `v1.0.0`, `v1.0.1`)
 - `latest` tag always points to the most recent stable release
-- For production, pin to a specific version tag (e.g., `ghcr.io/XDwanj/tmdb-mcp:v1.0.0`)
+- For production, pin to a specific version tag (e.g., `ghcr.io/xdwanj/tmdb-mcp:v1.0.0`)
 
 ## Use with Claude Code (MCP)
 

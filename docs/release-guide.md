@@ -84,9 +84,9 @@ Each release includes the following binaries:
 ### Docker Images
 
 Docker images are available at:
-- `ghcr.io/XDwanj/tmdb-mcp:latest` (always points to latest release)
-- `ghcr.io/XDwanj/tmdb-mcp:v1.0.0` (version-specific)
-- `ghcr.io/XDwanj/tmdb-mcp:v1.0.0-alpha.1` (pre-release versions)
+- `ghcr.io/xdwanj/tmdb-mcp:latest` (always points to latest release)
+- `ghcr.io/xdwanj/tmdb-mcp:v1.0.0` (version-specific)
+- `ghcr.io/xdwanj/tmdb-mcp:v1.0.0-alpha.1` (pre-release versions)
 
 All images support multiple architectures:
 - `linux/amd64`
@@ -116,8 +116,8 @@ If the automated process fails, you can manually create a release:
    ```bash
    # Build for multiple platforms
    docker buildx build --platform linux/amd64,linux/arm64 \
-     -t ghcr.io/XDwanj/tmdb-mcp:v1.0.0 \
-     -t ghcr.io/XDwanj/tmdb-mcp:latest \
+     -t ghcr.io/xdwanj/tmdb-mcp:v1.0.0 \
+     -t ghcr.io/xdwanj/tmdb-mcp:latest \
      --push .
    ```
 
