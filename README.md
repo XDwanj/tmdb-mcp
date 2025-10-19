@@ -3,7 +3,7 @@
 # TMDB MCP Server
 
 [![GitHub Stars](https://img.shields.io/github/stars/XDwanj/tmdb-mcp?style=social)](https://github.com/XDwanj/tmdb-mcp)
-[![License](https://img.shields.io/github/license/XDwanj/tmdb-mcp)]
+![License](https://img.shields.io/github/license/XDwanj/tmdb-mcp)
 [![Go Version](https://img.shields.io/badge/Go-1.21%2B-00ADD8?logo=go)](https://go.dev/)
 [![Build](https://github.com/XDwanj/tmdb-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/XDwanj/tmdb-mcp/actions)
 [![Release](https://img.shields.io/github/release/XDwanj/tmdb-mcp)](https://github.com/XDwanj/tmdb-mcp/releases)
