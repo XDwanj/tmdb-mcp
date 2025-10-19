@@ -1,13 +1,16 @@
-# TMDB MCP 配置文件示例
-logging: # 日志配置
-  level: info # 日志级别：debug, info, warn, error
+logging:
+  level: info # Logging level: debug, info, warn, error
 server:
-  mode: # 服务器模式：stdio, sse, both
+  # Server mode: "sse" (HTTP+SSE) or "stdio" (stdin/stdout)
+  mode: sse
   sse:
-    host: 0.0.0.0 # SSE 服务器主机
-    port: 8910 # SSE 服务器端口
-    token: your_secure_token_here # SSE 认证令牌
+    host: 0.0.0.0 # SSE server host (0.0.0.0 allows external connections)
+    port: 8910 # SSE server port
+    # REQUIRED for SSE mode: Token for Bearer authentication
+    # Generate a secure random token: openssl rand -base64 32
+    token: your_secure_token_here
 tmdb:
-  api_key: your_tmdb_api_key_here # TMDB API 密钥
-  language: zh-CN # TMDB API 语言（ISO 639-1 代码）
-  rate_limit: 40 # TMDB API 速率限制（每 10 秒请求数）
+  # # REQUIRED: Your TMDB API Key (get from https://www.themoviedb.org/settings/api)
+  api_key: your_tmdb_api_key_here # TMDB API secret key
+  language: zh-CN # TMDB API language (ISO 639-1 code)
+  rate_limit: 40 # TMDB API rate limit (number of requests every 10 seconds)
