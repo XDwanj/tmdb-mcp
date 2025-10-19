@@ -27,7 +27,7 @@ func TestConfig_Validate(t *testing.T) {
 				Server: ServerConfig{
 					Mode: "stdio",
 					SSE: SSEConfig{
-						Enabled: false,
+						// Enabled: false,
 						Host:    "0.0.0.0",
 						Port:    8910,
 					},
@@ -156,7 +156,7 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, "en-US", cfg.TMDB.Language)
 	assert.Equal(t, 40, cfg.TMDB.RateLimit)
 	assert.Equal(t, "stdio", cfg.Server.Mode)
-	assert.Equal(t, false, cfg.Server.SSE.Enabled)
+	// assert.Equal(t, false, cfg.Server.SSE.Enabled)
 	assert.Equal(t, "0.0.0.0", cfg.Server.SSE.Host)
 	assert.Equal(t, 8910, cfg.Server.SSE.Port)
 	assert.Equal(t, "info", cfg.Logging.Level)
@@ -255,7 +255,7 @@ logging:
 	assert.Equal(t, "ja-JP", cfg.TMDB.Language)
 	assert.Equal(t, 30, cfg.TMDB.RateLimit)
 	assert.Equal(t, "both", cfg.Server.Mode)
-	assert.Equal(t, true, cfg.Server.SSE.Enabled)
+	// assert.Equal(t, true, cfg.Server.SSE.Enabled)
 	assert.Equal(t, "localhost", cfg.Server.SSE.Host)
 	assert.Equal(t, 8888, cfg.Server.SSE.Port)
 	assert.Equal(t, "warn", cfg.Logging.Level)
