@@ -6,7 +6,8 @@
 [![License](https://img.shields.io/github/license/XDwanj/tmdb-mcp)]
 [![Go Version](https://img.shields.io/badge/Go-1.21%2B-00ADD8?logo=go)](https://go.dev/)
 [![Build](https://github.com/XDwanj/tmdb-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/XDwanj/tmdb-mcp/actions)
-[![Docker Pulls](https://img.shields.io/docker/pulls/xdwanj/tmdb-mcp)](#)
+[![Release](https://img.shields.io/github/release/XDwanj/tmdb-mcp)](https://github.com/XDwanj/tmdb-mcp/releases)
+[![Docker Pulls](https://img.shields.io/docker/pulls/xdwanj/tmdb-mcp)](https://github.com/XDwanj/tmdb-mcp/pkgs/container/tmdb-mcp)
 
 An MCP (Model Context Protocol) server for The Movie Database (TMDB): search, details, discovery, trending, and recommendations — ready for stdio and SSE modes, with Docker support.
 
@@ -52,6 +53,19 @@ curl -s http://localhost:8910/health
 
 ### Docker
 
+#### Option 1: Use pre-built image (Recommended)
+
+```bash
+docker pull ghcr.io/XDwanj/tmdb-mcp:latest
+docker run --rm -p 8910:8910 \
+  -e TMDB_API_KEY=your_api_key \
+  -e SERVER_MODE=sse \
+  -e SSE_TOKEN=$(openssl rand -base64 32) \
+  ghcr.io/XDwanj/tmdb-mcp:latest
+```
+
+#### Option 2: Build from source
+
 ```bash
 docker build -t tmdb-mcp .
 docker run --rm -p 8910:8910 \
@@ -62,6 +76,23 @@ docker run --rm -p 8910:8910 \
 ```
 
 Or use docker-compose: see `examples/docker-compose.yml`.
+
+### Binary Downloads
+
+Pre-compiled binaries are available on the [Releases page](https://github.com/XDwanj/tmdb-mcp/releases).
+
+Supported platforms:
+- Linux (amd64, arm64)
+- macOS (amd64, arm64)
+- Windows (amd64)
+
+Example:
+```bash
+# Linux amd64
+wget https://github.com/XDwanj/tmdb-mcp/releases/latest/download/tmdb-mcp-linux-amd64.tar.gz
+tar -xzf tmdb-mcp-linux-amd64.tar.gz
+sudo mv tmdb-mcp /usr/local/bin/
+```
 
 ## Features
 
@@ -102,10 +133,42 @@ Key fields:
 
 ## Deployment
 
-- Local binary: `go build -o tmdb-mcp ./cmd/tmdb-mcp`
-- Docker: `docker build -t tmdb-mcp .`
-- Docker Compose: `examples/docker-compose.yml`
-- Kubernetes: expose the container at port 8910 and configure `SSE_TOKEN`/`TMDB_API_KEY` via secrets
+### Quick Deployment Options
+
+1. **Pre-built Docker Image (Recommended):**
+   ```bash
+   docker run -d --name tmdb-mcp -p 8910:8910 \
+     -e TMDB_API_KEY=your_api_key \
+     -e SERVER_MODE=sse \
+     -e SSE_TOKEN=your_token \
+     ghcr.io/XDwanj/tmdb-mcp:latest
+   ```
+
+2. **Download Binary:**
+   ```bash
+   # Download the latest release for your platform
+   wget https://github.com/XDwanj/tmdb-mcp/releases/latest/download/tmdb-mcp-linux-amd64.tar.gz
+   tar -xzf tmdb-mcp-linux-amd64.tar.gz
+   ./tmdb-mcp --server-mode sse
+   ```
+
+3. **Build from Source:**
+   ```bash
+   go build -o tmdb-mcp ./cmd/tmdb-mcp
+   ./tmdb-mcp --server-mode sse
+   ```
+
+### Production Deployment
+
+- **Docker Compose:** See `examples/docker-compose.yml`
+- **Kubernetes:** Expose the container at port 8910 and configure `SSE_TOKEN`/`TMDB_API_KEY` via secrets
+- **Docker Registry:** Use `ghcr.io/XDwanj/tmdb-mcp:{tag}` for specific versions
+
+### Version Management
+
+- Use semantic versioning (e.g., `v1.0.0`, `v1.0.1`)
+- `latest` tag always points to the most recent stable release
+- For production, pin to a specific version tag (e.g., `ghcr.io/XDwanj/tmdb-mcp:v1.0.0`)
 
 ## Use with Claude Code (MCP)
 
