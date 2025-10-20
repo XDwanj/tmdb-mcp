@@ -2,8 +2,8 @@ version: '3.8'
 
 services:
   tmdb-mcp:
-    # Docker image (update to your registry/username if publishing)
-    image: tmdb-mcp:latest
+    # Docker image
+    image: ghcr.io/xdwanj/tmdb-mcp:latest
 
     # Container name for easy identification
     container_name: tmdb-mcp

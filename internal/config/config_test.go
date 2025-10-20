@@ -28,8 +28,8 @@ func TestConfig_Validate(t *testing.T) {
 					Mode: "stdio",
 					SSE: SSEConfig{
 						// Enabled: false,
-						Host:    "0.0.0.0",
-						Port:    8910,
+						Host: "0.0.0.0",
+						Port: 8910,
 					},
 				},
 				Logging: LogConfig{

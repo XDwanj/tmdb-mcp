@@ -1,6 +1,8 @@
 package middleware
 
-import "net/http"
+import (
+	"net/http"
+)
 
 // authMiddleware validates Bearer Token
 func AuthMiddleware(token string, next http.Handler) http.Handler {

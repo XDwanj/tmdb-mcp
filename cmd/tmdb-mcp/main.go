@@ -1,22 +1,22 @@
 package main
 
 import (
-    "context"
-    "flag"
-    "fmt"
-    "net/http"
-    "os"
-    "time"
+	"context"
+	"flag"
+	"fmt"
+	"net/http"
+	"os"
+	"time"
 
-    mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
-    "go.uber.org/zap"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.uber.org/zap"
 
-    "github.com/XDwanj/tmdb-mcp/internal/config"
-    "github.com/XDwanj/tmdb-mcp/internal/logger"
-    "github.com/XDwanj/tmdb-mcp/internal/mcp"
-    "github.com/XDwanj/tmdb-mcp/internal/server/middleware"
-    "github.com/XDwanj/tmdb-mcp/internal/tmdb"
-    "github.com/XDwanj/tmdb-mcp/pkg/version"
+	"github.com/XDwanj/tmdb-mcp/internal/config"
+	"github.com/XDwanj/tmdb-mcp/internal/logger"
+	"github.com/XDwanj/tmdb-mcp/internal/mcp"
+	"github.com/XDwanj/tmdb-mcp/internal/server/middleware"
+	"github.com/XDwanj/tmdb-mcp/internal/tmdb"
+	"github.com/XDwanj/tmdb-mcp/pkg/version"
 )
 
 // healthHandler returns server health status
@@ -26,48 +26,48 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-    // 命令行参数（作为最高优先级）
-    tmdbAPIKey := flag.String("tmdb-api-key", "", "TMDB API Key (overrides TMDB_API_KEY env)")
-    tmdbLang := flag.String("tmdb-language", "", "TMDB API language, e.g., en-US (overrides TMDB_LANGUAGE env)")
-    tmdbRate := flag.Int("tmdb-rate-limit", 0, "TMDB rate limit per 10s (overrides TMDB_RATE_LIMIT env)")
+	// 命令行参数（作为最高优先级）
+	tmdbAPIKey := flag.String("tmdb-api-key", "", "TMDB API Key (overrides TMDB_API_KEY env)")
+	tmdbLang := flag.String("tmdb-language", "", "TMDB API language, e.g., en-US (overrides TMDB_LANGUAGE env)")
+	tmdbRate := flag.Int("tmdb-rate-limit", 0, "TMDB rate limit per 10s (overrides TMDB_RATE_LIMIT env)")
 
-    serverMode := flag.String("server-mode", "", "Server mode: stdio|sse|both (overrides SERVER_MODE env)")
-    sseHost := flag.String("sse-host", "", "SSE host (overrides SERVER_SSE_HOST env)")
-    ssePort := flag.Int("sse-port", 0, "SSE port (overrides SERVER_SSE_PORT env)")
-    sseToken := flag.String("sse-token", "", "SSE bearer token (overrides SSE_TOKEN env)")
+	serverMode := flag.String("server-mode", "", "Server mode: stdio|sse|both (overrides SERVER_MODE env)")
+	sseHost := flag.String("sse-host", "", "SSE host (overrides SERVER_SSE_HOST env)")
+	ssePort := flag.Int("sse-port", 0, "SSE port (overrides SERVER_SSE_PORT env)")
+	sseToken := flag.String("sse-token", "", "SSE bearer token (overrides SSE_TOKEN env)")
 
-    logLevel := flag.String("logging-level", "", "Logging level: debug|info|warn|error (overrides LOGGING_LEVEL env)")
+	logLevel := flag.String("logging-level", "", "Logging level: debug|info|warn|error (overrides LOGGING_LEVEL env)")
 
-    flag.Parse()
+	flag.Parse()
 
-    // 将提供的 flags 映射为环境变量，确保优先级：CLI > ENV > 文件
-    if *tmdbAPIKey != "" {
-        os.Setenv("TMDB_API_KEY", *tmdbAPIKey)
-    }
-    if *tmdbLang != "" {
-        os.Setenv("TMDB_LANGUAGE", *tmdbLang)
-    }
-    if *tmdbRate > 0 {
-        os.Setenv("TMDB_RATE_LIMIT", fmt.Sprintf("%d", *tmdbRate))
-    }
-    if *serverMode != "" {
-        os.Setenv("SERVER_MODE", *serverMode)
-    }
-    if *sseHost != "" {
-        os.Setenv("SERVER_SSE_HOST", *sseHost)
-    }
-    if *ssePort > 0 {
-        os.Setenv("SERVER_SSE_PORT", fmt.Sprintf("%d", *ssePort))
-    }
-    if *sseToken != "" {
-        os.Setenv("SSE_TOKEN", *sseToken)
-    }
-    if *logLevel != "" {
-        os.Setenv("LOGGING_LEVEL", *logLevel)
-    }
+	// 将提供的 flags 映射为环境变量，确保优先级：CLI > ENV > 文件
+	if *tmdbAPIKey != "" {
+		os.Setenv("TMDB_API_KEY", *tmdbAPIKey)
+	}
+	if *tmdbLang != "" {
+		os.Setenv("TMDB_LANGUAGE", *tmdbLang)
+	}
+	if *tmdbRate > 0 {
+		os.Setenv("TMDB_RATE_LIMIT", fmt.Sprintf("%d", *tmdbRate))
+	}
+	if *serverMode != "" {
+		os.Setenv("SERVER_MODE", *serverMode)
+	}
+	if *sseHost != "" {
+		os.Setenv("SERVER_SSE_HOST", *sseHost)
+	}
+	if *ssePort > 0 {
+		os.Setenv("SERVER_SSE_PORT", fmt.Sprintf("%d", *ssePort))
+	}
+	if *sseToken != "" {
+		os.Setenv("SSE_TOKEN", *sseToken)
+	}
+	if *logLevel != "" {
+		os.Setenv("LOGGING_LEVEL", *logLevel)
+	}
 
-    // 加载配置
-    cfg, err := config.Load()
+	// 加载配置
+	cfg, err := config.Load()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading configuration: %v\n", err)
 		os.Exit(1)

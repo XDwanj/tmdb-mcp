@@ -35,9 +35,9 @@ type ServerConfig struct {
 // SSEConfig contains SSE server configuration
 type SSEConfig struct {
 	// Enabled bool   `mapstructure:"enabled" json:"enabled"`
-	Host    string `mapstructure:"host" json:"host"`
-	Port    int    `mapstructure:"port" json:"port"`
-	Token   string `mapstructure:"token" json:"token"`
+	Host  string `mapstructure:"host" json:"host"`
+	Port  int    `mapstructure:"port" json:"port"`
+	Token string `mapstructure:"token" json:"token"`
 }
 
 // LogConfig contains logging configuration
