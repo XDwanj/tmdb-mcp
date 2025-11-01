@@ -607,4 +607,53 @@ func TestSearchTool_Integration(t *testing.T) {
 9. 创建 "感谢早期用户" 文档 `CONTRIBUTORS.md`
 10. 准备 MVP 成功报告：总结关键指标、识别成功点和改进空间、规划长期路线图
 
+## Epic 6: Streamable HTTP Remote Access Mode
+
+**Epic Goal**: 在现有 stdio 与 SSE 模式基础上引入 MCP Streamable HTTP 传输支持，实现可恢复的长连接会话、断线重连与增量消息推送，同时复用既有认证、配置与部署路径，确保远程客户端兼容性与可扩展性。
+
+### Story 6.1: Streamable HTTP 端点与服务集成
+
+**As a** 需要通过 HTTP 长连接访问 MCP 服务的 DevOps 工程师，  
+**I want** 在服务中新增 `/mcp/stream` 端点并集成 `StreamableHTTPHandler`，  
+**so that** 远程客户端可以通过 Streamable 传输模式建立可恢复的 MCP 会话。
+
+**Acceptance Criteria**:
+
+1. 新增 `RunStreamableHTTPServer`（或等效）函数，基于 `mcp.NewStreamableHTTPHandler` 暴露 `StreamableServerTransport` 会话。
+2. `/mcp/stream` 端点沿用现有 Bearer Token 中间件，校验失败时返回 401，并记录安全日志。
+3. Streamable 会话创建时复用既有 MCP Server 注册、工具列表与会话初始化逻辑，确保三种传输模式调用路径一致。
+4. 为 Streamable 会话生命周期添加结构化日志（连接开始、结束、重连、错误），遵循既有 `zap` 字段约定。
+5. 对异常请求（缺失 Token、使用非 GET 方法、HTTP/1.0 客户端）进行明确的错误响应与日志记录。
+6. 单元测试覆盖端点路由、认证流程与最小会话建立流程，确保关键路径可测。
+
+### Story 6.2: 配置、重连与回放能力
+
+**As a** 需要灵活部署 MCP 服务的运维工程师，  
+**I want** 为 Streamable 模式提供与现有 stdio/SSE 一致的配置、CLI 与自动化测试支持，  
+**so that** 可以按需启用组合模式，并验证断线重连和消息回放稳定性。
+
+**Acceptance Criteria**:
+
+1. 配置结构体新增 `server.streamable.enabled/host/port/token`，默认禁用，CLI flag 与环境变量命名与 SSE 模式对齐。
+2. 启动流程根据配置决定是否注册 Streamable 端点，阻止端口冲突，并提供清晰错误信息。
+3. 实现 `StreamableReconnectOptions` 配置（超时、最大重试次数、事件保留限制），支持通过配置文件或默认值覆盖。
+4. 为 Streamable 会话提供事件存储（内存或可选持久层），支持断线后 30 秒内重连并重放未消费事件。
+5. 集成测试模拟客户端断线、重连、并发会话与非法 Token，验证服务稳定性与资源回收（无 goroutine 泄漏）。
+6. CI 新增覆盖率门禁或 e2e 测试，确保 Streamable 模式启用后整体测试通过。
+
+### Story 6.3: 文档、示例与可观测性扩展
+
+**As a** 准备部署或评估 MCP 服务的新用户，  
+**I want** 获取 Streamable 模式的配置样例、使用指南与监控指标，  
+**so that** 能够快速部署并理解何时选择该模式。
+
+**Acceptance Criteria**:
+
+1. 更新 README、`docs/configuration.md`、`docs/troubleshooting.md`，新增 Streamable 配置章节、环境变量示例与常见错误排查。
+2. 在 `examples/` 目录添加 Streamable HTTP 使用示例（CLI、Claude Code 配置片段、Docker/Compose 配置），并说明与 SSE 差异。
+3. Docker 镜像与 Compose 模板加入 Streamable 模式参数，默认关闭，并提供启用说明与端口映射样例。
+4. 更新监控与日志章节，列出关键指标（并发会话数、重连次数、事件队列大小）以及推荐的 `zap` 日志过滤示例。
+5. 在发布说明或升级指南中记录新增模式、向后兼容性声明与回退步骤，提醒用户升级前备份配置。
+6. 验证文档链接、命令示例与脚本可运行，通过 Markdown lint 或手动检查确保无破损链接。
+
 ---

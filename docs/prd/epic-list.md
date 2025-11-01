@@ -15,4 +15,7 @@
 ## Epic 5: Documentation, Examples & Community Launch
 **目标**: 完善项目文档（README、配置指南、使用示例、故障排查），提供真实场景的示例配置和脚本，准备并发布 GitHub Release、Docker Hub 镜像，向社区宣传（r/selfhosted、r/jellyfin）并收集早期用户反馈。
 
+## Epic 6: Streamable HTTP Remote Access Mode
+**目标**: 在现有 stdio 与 SSE 模式基础上，引入 MCP Streamable HTTP 传输支持，实现可恢复的长连接会话与增量消息推送，同时复用既有认证、配置与部署路径，提升远程客户端兼容性与可扩展性。
+
 ---

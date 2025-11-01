@@ -181,14 +181,19 @@ func RunSSEModeServer(ctx context.Context, mcpServer *mcp.Server, cfg *config.Co
 	// SSE 模式：通过 HTTP SSE 通信
 	log.Info("Starting MCP server in SSE mode")
 
-	// 设置 SSE 处理器
-	handler := mcpServer.GetSSEHandler()
-	handler = middleware.AuthMiddleware(cfg.Server.SSE.Token, handler)
+	// 设置 SSE 处理器（仅 GET）
+	sseHandler := mcpServer.GetSSEHandler()
+	sseHandler = middleware.AuthMiddlewareWithLogger(log, cfg.Server.SSE.Token, sseHandler)
+
+	// 设置 Streamable 处理器（GET/POST/DELETE）
+	streamHandler := mcpServer.GetStreamableHandler()
+	streamHandler = middleware.AuthMiddlewareWithLogger(log, cfg.Server.SSE.Token, streamHandler)
 
 	// 设置路由
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler)
-	mux.Handle("/mcp/sse", handler)
+	mux.Handle("/mcp/sse", sseHandler)
+	mux.Handle("/mcp/stream", streamHandler)
 
 	// 启动服务器
 	addr := fmt.Sprintf("%s:%d", cfg.Server.SSE.Host, cfg.Server.SSE.Port)

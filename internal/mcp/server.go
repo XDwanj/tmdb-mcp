@@ -100,3 +100,13 @@ func (s *Server) GetSSEHandler() http.Handler {
 		return s.mcpServer
 	}, nil) // nil for default SSEOptions
 }
+
+// GetStreamableHandler returns an HTTP handler for Streamable HTTP connections.
+// It uses the MCP SDK's built-in Streamable support to expose a resumable
+// session transport that shares the same *mcp.Server instance and registered tools
+// with SSE and stdio modes.
+func (s *Server) GetStreamableHandler() http.Handler {
+	return mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
+		return s.mcpServer
+	}, nil) // nil for default StreamableHTTPOptions
+}
